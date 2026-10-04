@@ -9,8 +9,7 @@ Anonymous repository (for review):
 > Operations Research uses *soft double-anonymous* review: reviewers do not see
 > author names, but the Area/Associate Editors do. During review, cite the
 > anonymous mirror above — never a `github.com` URL, which would expose the
-> authors' account. The public GitHub URL is restored only after acceptance
-> (see the last section).
+> authors' account.
 
 ---
 
@@ -105,12 +104,3 @@ git reflog expire --expire=now --all && git gc --prune=now
 
 (already applied — every commit is authored by "Anonymous Authors
 <anonymous@example.com>").
-
-## After acceptance — restoring authorship
-
-1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`, and replace
-   every anonymous-mirror link with the public repository URL
-   (`https://github.com/<owner>/<repo>`, the private note in the authors'
-   records).
-2. Mint a DOI for the archival copy (e.g. via Zenodo) and cite it in the
-   manuscript's Code Availability statement.
