@@ -1,0 +1,11 @@
+# ignore caches and editors
+__pycache__/
+*.pyc
+.DS_Store
+
+# keep the MNIST raw files out of git by default (publicly available online)
+data/MNIST/raw/*.gz
+
+# results/ is tracked on purpose (it holds the paper's figures and raw arrays),
+# but ignore ad-hoc scratch output directories.
+results/_*/

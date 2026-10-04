@@ -1,0 +1,4 @@
+numpy>=1.21
+matplotlib>=3.4
+# Only required by src/mnist/mnist_experiment.py:
+torch>=1.10
