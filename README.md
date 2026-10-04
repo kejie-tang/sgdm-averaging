@@ -1,6 +1,7 @@
 # Code and Data for "Acceleration of Stochastic Gradient Descent with Momentum by Averaging: Finite-Sample Rates and Asymptotic Normality"
 
-Kejie Tang, Weidong Liu, Yichen Zhang, Xi Chen
+This repository accompanies the anonymous submission of the above paper.
+Author names and affiliations are omitted for double-anonymous peer review.
 
 This repository contains all code and data needed to reproduce the numerical
 experiments in the paper. It follows the directory conventions recommended by
