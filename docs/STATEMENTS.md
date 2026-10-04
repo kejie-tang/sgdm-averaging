@@ -4,6 +4,12 @@ These are ready-to-paste statements for the "Code & Data Disclosure" and
 "Ethical Statements -> Reproducibility" sections, and for the manuscript's
 Data/Code Availability note.
 
+> **Anonymity.** Operations Research uses *soft double-anonymous* review:
+> reviewers do not see author names, but the Area/Associate Editors do. This
+> repository is therefore anonymized for the review round — no author names,
+> affiliations or e-mails appear in the files or in the git history. Restore
+> them in the archival release after acceptance (see the last section).
+
 ---
 
 ## Code and Data Disclosure
@@ -17,7 +23,7 @@ Data/Code Availability note.
 > (LeCun et al.), which is freely available at
 > http://yann.lecun.com/exdb/mnist/ and is not redistributed by the authors.
 >
-> Repository: <GITHUB_URL>
+> Repository (anonymized for review): <ANON_REPO_URL>
 > (also provided as a supplementary archive `code_release.zip`).
 
 ## Data Availability Statement
@@ -32,7 +38,9 @@ Data/Code Availability note.
 ## Code Availability Statement
 
 > The code reproducing all figures and tables is available in the repository
-> <GITHUB_URL>. A frozen copy is included as supplementary material.
+> <ANON_REPO_URL>. A frozen copy is included as supplementary material. The
+> repository is anonymized for double-anonymous review; author names and
+> affiliations will be added to the archival version upon acceptance.
 
 ## Reproducibility statement
 
@@ -63,16 +71,92 @@ result. This repository follows that recommendation:
 * a `results/` directory that holds the paper's figures, the raw numeric
   arrays, and the authors' run logs.
 
-## Steps to produce a GitHub repository from this folder
+---
+
+## Anonymized hosting for double-anonymous review
+
+Operations Research runs soft double-anonymous review, so the repository that
+reviewers open must not reveal the authors. Three options, in order of
+preference:
+
+### Option A — anonymous GitHub account (recommended)
+
+Create a throwaway GitHub account that carries **no** personal information
+(neutral login, e.g. `anon-researcher-2026`, and a generic e-mail such as
+`anonymous@example.com`), then push this folder to a repository whose name is
+descriptive but identity-free. Suggested names:
+
+* `sgdm-averaging`
+* `sgdm-code-and-data`
+* `stochastic-momentum-averaging`
+
+Suggested URL shape: `https://github.com/anon-researcher-2026/sgdm-averaging`
+
+### Option B — Anonymous GitHub mirror
+
+<https://anonymous.4open.science/> builds a read-only, term-redacted mirror of
+an existing repository and hands back a random slug such as
+`https://anonymous.4open.science/r/840c8c57-...`. Nothing about the original
+account is exposed, and you can set the mirror to expire after the review
+round. Useful if you would rather not maintain a second account.
+
+### Option C — supplementary archive
+
+Upload `code_release.zip` through the journal's own submission system as
+supplementary material. This never exposes a URL at all, but reviewers cannot
+browse it as conveniently as a repository.
+
+## Checklist before pushing
+
+The folder is already anonymized, but re-check after any edit. Substitute your
+own identifying terms into `TERMS` first (author surnames, affiliations,
+institution abbreviations, e-mail domains):
+
+```bash
+TERMS="surname1|surname2|university|department|institute-abbrev"
+
+# 1. no names / affiliations / e-mails in the files
+grep -rniE "$TERMS" --include="*.md" --include="*.py" --include="*.sh" .
+
+# 2. no names in the git history
+git log --all --format="%an <%ae> %s" | grep -iE "$TERMS"
+
+# 3. no local absolute paths (would leak a user name)
+grep -rnE "/Users/|/home/|[A-Z]:\\\\\\\\Users" --include="*.py" --include="*.sh" .
+```
+
+If (1) or (2) match, re-anonymize before pushing. History is rewritten with
+
+```bash
+git filter-branch -f --env-filter '
+export GIT_AUTHOR_NAME="Anonymous Authors"
+export GIT_AUTHOR_EMAIL="anonymous@example.com"
+export GIT_COMMITTER_NAME="Anonymous Authors"
+export GIT_COMMITTER_EMAIL="anonymous@example.com"
+' -- --all
+rm -rf .git/refs/original
+git reflog expire --expire=now --all && git gc --prune=now
+```
+
+(this has already been applied to this folder: every commit is authored by
+"Anonymous Authors <anonymous@example.com>").
+
+## Pushing to the anonymous repository
 
 ```bash
 cd code_release
-git init
-git add .
-git commit -m "Code and data for SGDM averaging paper"
-git branch -M main
-git remote add origin <GITHUB_URL>
+git remote add origin <ANON_REPO_URL>
 git push -u origin main
 ```
 
-Then replace `<GITHUB_URL>` above and in the manuscript with the real URL.
+Then paste `<ANON_REPO_URL>` into the manuscript and into the statements above.
+
+## After acceptance — restoring authorship
+
+Create a final, non-anonymous release:
+
+1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`.
+2. Either publish the repository as-is under your real account, or push a
+   fresh repository and mint a **DOI** (e.g. via Zenodo) for the archival copy.
+3. Update the manuscript's Code Availability statement to cite the DOI.
+
