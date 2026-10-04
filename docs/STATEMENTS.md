@@ -108,8 +108,9 @@ git reflog expire --expire=now --all && git gc --prune=now
 
 ## After acceptance — restoring authorship
 
-1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`, and put the
-   public repository URL back where the anonymous mirror is cited:
-   `https://github.com/kejie-tang/sgdm-averaging`.
+1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`, and replace
+   every anonymous-mirror link with the public repository URL
+   (`https://github.com/<owner>/<repo>`, the private note in the authors'
+   records).
 2. Mint a DOI for the archival copy (e.g. via Zenodo) and cite it in the
    manuscript's Code Availability statement.
