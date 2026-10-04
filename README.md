@@ -2,7 +2,7 @@
 
 Code and data to reproduce every numerical result in the paper.
 
-Repository: <https://github.com/kejie-tang/sgdm-averaging>
+Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgdm-averaging-2F7D>
 
 ---
 

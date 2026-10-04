@@ -3,13 +3,14 @@
 Ready-to-paste text for the "Code & Data Disclosure" and "Ethical Statements →
 Reproducibility" sections, and for the manuscript's Data/Code Availability note.
 
-Repository: <https://github.com/kejie-tang/sgdm-averaging>
+Anonymous repository (for review):
+<https://anonymous.4open.science/r/sgdm-averaging-2F7D>
 
 > Operations Research uses *soft double-anonymous* review: reviewers do not see
-> author names, but the Area/Associate Editors do. The repository name and its
-> file contents carry no author names, affiliations or e-mails; only the
-> hosting account is identifiable. For a fully anonymous link, use the mirror
-> described at the end.
+> author names, but the Area/Associate Editors do. During review, cite the
+> anonymous mirror above — never a `github.com` URL, which would expose the
+> authors' account. The public GitHub URL is restored only after acceptance
+> (see the last section).
 
 ---
 
@@ -23,7 +24,7 @@ Repository: <https://github.com/kejie-tang/sgdm-averaging>
 > public MNIST dataset (LeCun et al.), freely available at
 > <http://yann.lecun.com/exdb/mnist/> and not redistributed by the authors.
 >
-> Repository: <https://github.com/kejie-tang/sgdm-averaging>
+> Repository: <https://anonymous.4open.science/r/sgdm-averaging-2F7D>
 > (also provided as a supplementary archive `code_release.zip`).
 
 ## Data Availability
@@ -37,8 +38,8 @@ Repository: <https://github.com/kejie-tang/sgdm-averaging>
 ## Code Availability
 
 > The code reproducing all figures and tables is available at
-> <https://github.com/kejie-tang/sgdm-averaging>. A frozen copy is included as
-> supplementary material.
+> <https://anonymous.4open.science/r/sgdm-averaging-2F7D>. A frozen copy is
+> included as supplementary material.
 
 ## Reproducibility
 
@@ -59,12 +60,17 @@ Per the OR journal instructions
 source; nothing committed), `docs/` (these statements), and `results/` (figures,
 raw arrays, run logs).
 
-## Anonymous link (optional)
+## Anonymous link
 
-<https://anonymous.4open.science/> builds a read-only, term-redacted mirror and
-returns a random slug (e.g. `https://anonymous.4open.science/r/840c8c57-...`).
-Nothing about the account is exposed and the mirror can be set to expire after
-the review round. If used, give reviewers the slug instead of the GitHub URL.
+This repository is mirrored at
+
+```
+https://anonymous.4open.science/r/sgdm-averaging-2F7D
+```
+
+<https://anonymous.4open.science/> serves a read-only, term-redacted copy; the
+mirror exposes no author names, affiliations, e-mails or account details.
+Reviewers should be given this slug, never a `github.com` URL.
 
 Alternatively, upload `code_release.zip` as supplementary material — no URL is
 exposed, though reviewers cannot browse it as conveniently.
@@ -102,6 +108,8 @@ git reflog expire --expire=now --all && git gc --prune=now
 
 ## After acceptance — restoring authorship
 
-1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`.
+1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`, and put the
+   public repository URL back where the anonymous mirror is cited:
+   `https://github.com/kejie-tang/sgdm-averaging`.
 2. Mint a DOI for the archival copy (e.g. via Zenodo) and cite it in the
    manuscript's Code Availability statement.
