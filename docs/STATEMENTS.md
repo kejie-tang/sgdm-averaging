@@ -4,11 +4,12 @@ These are ready-to-paste statements for the "Code & Data Disclosure" and
 "Ethical Statements -> Reproducibility" sections, and for the manuscript's
 Data/Code Availability note.
 
-> **Anonymity.** Operations Research uses *soft double-anonymous* review:
-> reviewers do not see author names, but the Area/Associate Editors do. This
-> repository is therefore anonymized for the review round — no author names,
-> affiliations or e-mails appear in the files or in the git history. Restore
-> them in the archival release after acceptance (see the last section).
+> **Note.** Operations Research uses *soft double-anonymous* review: reviewers
+> do not see author names, but the Area/Associate Editors do. The repository
+> name and its file contents carry no author names, affiliations or e-mails;
+> the hosting account itself is the authors' personal GitHub account. If a
+> fully anonymous link is preferred for the review round, use the
+> `anonymous.4open.science` mirror described at the end of this file.
 
 ---
 
@@ -23,7 +24,7 @@ Data/Code Availability note.
 > (LeCun et al.), which is freely available at
 > http://yann.lecun.com/exdb/mnist/ and is not redistributed by the authors.
 >
-> Repository (anonymized for review): <ANON_REPO_URL>
+> Repository: https://github.com/kejie-tang/sgdm-averaging
 > (also provided as a supplementary archive `code_release.zip`).
 
 ## Data Availability Statement
@@ -38,9 +39,8 @@ Data/Code Availability note.
 ## Code Availability Statement
 
 > The code reproducing all figures and tables is available in the repository
-> <ANON_REPO_URL>. A frozen copy is included as supplementary material. The
-> repository is anonymized for double-anonymous review; author names and
-> affiliations will be added to the archival version upon acceptance.
+> https://github.com/kejie-tang/sgdm-averaging. A frozen copy is included as
+> supplementary material.
 
 ## Reproducibility statement
 
@@ -73,42 +73,38 @@ result. This repository follows that recommendation:
 
 ---
 
-## Anonymized hosting for double-anonymous review
+## Repository hosting
 
-Operations Research runs soft double-anonymous review, so the repository that
-reviewers open must not reveal the authors. Three options, in order of
-preference:
+The repository lives at:
 
-### Option A — anonymous GitHub account (recommended)
+```
+https://github.com/kejie-tang/sgdm-averaging
+```
 
-Create a throwaway GitHub account that carries **no** personal information
-(neutral login, e.g. `anon-researcher-2026`, and a generic e-mail such as
-`anonymous@example.com`), then push this folder to a repository whose name is
-descriptive but identity-free. Suggested names:
+Operations Research runs soft double-anonymous review, so reviewers should not
+be able to identify the authors. The repository **files and git history carry
+no author names, affiliations or e-mails**, and the repository name
+(`sgdm-averaging`) is descriptive but identity-free. The hosting *account*
+(`kejie-tang`) is identifiable, so if a fully anonymous link is wanted for the
+review round, use the mirror below instead of the raw URL.
 
-* `sgdm-averaging`
-* `sgdm-code-and-data`
-* `stochastic-momentum-averaging`
-
-Suggested URL shape: `https://github.com/anon-researcher-2026/sgdm-averaging`
-
-### Option B — Anonymous GitHub mirror
+### Anonymous GitHub mirror (optional, fully anonymous link)
 
 <https://anonymous.4open.science/> builds a read-only, term-redacted mirror of
-an existing repository and hands back a random slug such as
-`https://anonymous.4open.science/r/840c8c57-...`. Nothing about the original
-account is exposed, and you can set the mirror to expire after the review
-round. Useful if you would rather not maintain a second account.
+the repository above and hands back a random slug such as
+`https://anonymous.4open.science/r/840c8c57-...`. Nothing about the account is
+exposed, and the mirror can be set to expire after the review round. If you use
+this, give reviewers the slug rather than the `github.com` URL.
 
-### Option C — supplementary archive
+### Supplementary archive (no URL at all)
 
 Upload `code_release.zip` through the journal's own submission system as
-supplementary material. This never exposes a URL at all, but reviewers cannot
-browse it as conveniently as a repository.
+supplementary material. This never exposes a URL, but reviewers cannot browse
+it as conveniently as a repository.
 
 ## Checklist before pushing
 
-The folder is already anonymized, but re-check after any edit. Substitute your
+Re-check after any edit that touches the files or the history. Substitute your
 own identifying terms into `TERMS` first (author surnames, affiliations,
 institution abbreviations, e-mail domains):
 
@@ -138,25 +134,30 @@ rm -rf .git/refs/original
 git reflog expire --expire=now --all && git gc --prune=now
 ```
 
-(this has already been applied to this folder: every commit is authored by
-"Anonymous Authors <anonymous@example.com>").
+(this has already been applied: every commit is authored by "Anonymous Authors
+<anonymous@example.com>").
 
-## Pushing to the anonymous repository
+## Pushing
+
+The remote is already configured; to re-push:
 
 ```bash
 cd code_release
-git remote add origin <ANON_REPO_URL>
-git push -u origin main
+git push
 ```
 
-Then paste `<ANON_REPO_URL>` into the manuscript and into the statements above.
+To start over from scratch:
+
+```bash
+git remote add origin git@github.com:kejie-tang/sgdm-averaging.git
+git push -u origin main
+```
 
 ## After acceptance — restoring authorship
 
 Create a final, non-anonymous release:
 
 1. Restore the author list in `AUTHORS`, `README.md` and `LICENSE`.
-2. Either publish the repository as-is under your real account, or push a
-   fresh repository and mint a **DOI** (e.g. via Zenodo) for the archival copy.
-3. Update the manuscript's Code Availability statement to cite the DOI.
+2. Mint a **DOI** for the archival copy (e.g. via Zenodo) and cite it in the
+   manuscript's Code Availability statement.
 

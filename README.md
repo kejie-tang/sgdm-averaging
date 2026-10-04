@@ -1,11 +1,14 @@
 # Code and Data for "Acceleration of Stochastic Gradient Descent with Momentum by Averaging: Finite-Sample Rates and Asymptotic Normality"
 
-This repository accompanies the anonymous submission of the above paper.
-Author names and affiliations are omitted for double-anonymous peer review.
-
 This repository contains all code and data needed to reproduce the numerical
 experiments in the paper. It follows the directory conventions recommended by
 the INFORMS/Operations Research code-and-data guidelines.
+
+Repository: <https://github.com/kejie-tang/sgdm-averaging>
+
+Author names and affiliations are intentionally absent from the files and from
+the git history (see `AUTHORS`), so the repository can be shared during
+double-anonymous review.
 
 ---
 
