@@ -8,9 +8,14 @@ Setting
 MNIST, N = 60,000 images of size 28x28 reshaped to 784-dim vectors.  The model
 is a single linear layer (multinomial logistic regression) trained with the
 cross-entropy loss.  Batch size B = 256, learning rate alpha = 1.0,
-momentum weights gamma in {0, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99}, seeds 1, 2, 3.
+momentum weights gamma in {0.1, 0.3, 0.5, 0.7, 0.9, 0.99}, seeds 1, 2, 3.
 The reported training loss at iteration t is a moving average of the past
 floor(N/B) mini-batch losses (as stated in the paper).
+
+Panel layout of Figure 10 (fig:mnist):
+    (a) "Small gamma": SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5
+    (b) "Large gamma": SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-0.99
+        (the paper's panel (b) contains no SGD curve)
 
 Data
 ----
@@ -104,11 +109,13 @@ def load_mnist(raw_dir, download=False):
 
 
 def moving_average(arr, k):
-    """Average of the past k mini-batch losses (paper's reporting rule)."""
+    """Average of the past k mini-batch losses (the paper's reporting rule)."""
     n = len(arr)
-    ma = np.array(arr, dtype=float)
-    for idx in range(1, n):
-        ma[idx] = np.mean(arr[max(0, idx - k):idx + 1])
+    ma = np.zeros(n, dtype=float)
+    csum = np.concatenate(([0.0], np.cumsum(arr, dtype=float)))
+    for idx in range(n):
+        lo = max(0, idx - k + 1)
+        ma[idx] = (csum[idx + 1] - csum[lo]) / (idx + 1 - lo)
     return ma
 
 
@@ -187,14 +194,19 @@ def main():
             runs.append(run_one(seed, gamma, args.lr, args.epochs,
                                 args.batch_size, X, y, device))
         L = min(len(r) for r in runs)
-        curves[gamma] = np.mean([r[:L] for r in runs], axis=0)
+        # The paper reports a moving average over the past floor(N/B)
+        # mini-batch losses; apply it to each run before averaging the seeds.
+        k = args.batch_size and (X.shape[0] // args.batch_size)
+        ma_runs = [moving_average(r[:L], k) for r in runs]
+        curves[gamma] = np.mean(ma_runs, axis=0)
 
-    def plot(fname, betas, ylim):
+    def plot(fname, betas, ylim, include_sgd):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15, figure=fig)[0])
         j = 0
-        for beta in [0.0] + betas:
+        wanted = ([0.0] if include_sgd else []) + list(betas)
+        for beta in wanted:
             if beta not in curves:
                 continue
             label = "SGD" if beta == 0.0 else f"SGDM-{beta}"
@@ -209,8 +221,11 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 0.7))
-    plot("fig_mnist_large.png", [0.7, 0.9, 0.99], (0.2, 0.7))
+    # Figure 10(a): SGD, SGDM-0.1, 0.3, 0.5
+    plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 2.6), include_sgd=True)
+    # Figure 10(b): SGDM-0.5, 0.7, 0.9, 0.99  (no SGD in the paper's panel)
+    plot("fig_mnist_large.png", [0.5, 0.7, 0.9, 0.99], (0.2, 2.6),
+         include_sgd=False)
 
     np.savez_compressed(os.path.join(args.out, "mnist_losses.npz"),
                         **{f"gamma_{g}": curves[g] for g in curves})

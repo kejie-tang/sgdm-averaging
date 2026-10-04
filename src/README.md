@@ -13,6 +13,16 @@ relative import path resolves).
 | `logistic/` | Figs. 7-9 | `python src/logistic/logistic_experiment.py` |
 | `mnist/` | Fig. 10 | `python src/mnist/mnist_experiment.py` |
 
+The exact momentum weights drawn in each double-panel figure follow the
+published plots (see the "Figure -> code map" notes in `../README.md`):
+quadratic (a) `{0.5,0.7,0.9}` / (b) `{0.97,0.98,0.99}`; logistic (a)
+`{0.3,0.5,0.7}` / (b) `{0.8,0.9}`; MNIST (a) `{0.1,0.3,0.5}` / (b)
+`{0.5,0.7,0.9,0.99}` (no SGD in the MNIST large panel).
+
+The paper's `figures/` directory also contains `2-*.png`, `8-*.png`,
+`simulation1.png`, `alpha0001-*.png`, `clt-*.png` and `average_mnist.png`;
+these are commented out in the manuscript source and are not reproduced.
+
 `../scripts/run_all.sh` runs everything (set `FAST=1` for a reduced-fidelity
 pass).
 

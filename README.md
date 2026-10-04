@@ -114,7 +114,8 @@ python src/quadratic/quadratic_experiment.py --num_seed 200
 ```
 Sections 6.1. 200 replications, `N = 20,000`, `d = 10`, `B = 0.2N`,
 `alpha = 0.001`, `K = 1500` iterations. Mean adaptive momentum weight ~ 0.96
-(paper: 0.95-0.96). Outputs one PNG per paper panel:
+(paper: 0.95-0.96). Panel (a) uses `gamma in {0.5, 0.7, 0.9}`, panel (b) uses
+`gamma in {0.97, 0.98, 0.99}`. Outputs one PNG per paper panel:
 `results/quadratic/fig_linear_{small,large}.png` (Fig. 2(a),(b)),
 `fig_average_{small,large}_n0_200.png` (Fig. 3(a),(b)) and
 `fig_average_{small,large}_n0_500.png` (Fig. 4(a),(b)), plus
@@ -143,8 +144,10 @@ python src/clt/clt_experiment.py --num_seed 200 --num_seed_cov 200
 python src/logistic/logistic_experiment.py --num_seed 200
 ```
 Section 6.4. `N = 20,000`, `d = 10`, `B = 0.2N`, `alpha = 0.5`,
-`gamma in {0.3,0.5,0.7,0.8,0.9}` plus adaptive. Mean adaptive weight ~ 0.75.
-Outputs one PNG per panel:
+`gamma in {0.3,0.5,0.7,0.8,0.9}` plus adaptive. Panel (a) uses
+`gamma in {0.3,0.5,0.7}`, panel (b) uses `gamma in {0.8,0.9}` (both panels
+keep SGD as the reference curve). Mean adaptive weight ~ 0.75. Outputs one PNG
+per panel:
 `fig_logistic_{small,large}.png` (Fig. 7(a),(b)),
 `fig_logistic_ave_{small,large}.png` (Fig. 8, `n0=10`) and
 `fig_logistic_ave2_{small,large}.png` (Fig. 9, `n0=40`).
@@ -154,16 +157,18 @@ Outputs one PNG per panel:
 python src/mnist/mnist_experiment.py --download   # or place files by hand
 ```
 Section 6.6. `B = 256`, `alpha = 1.0`, `gamma in {0.1,0.3,0.5,0.7,0.9,0.99}`,
-seeds 1,2,3. The IDX files are read directly (no `torchvision` needed); pass
-`--data-root data/MNIST` to point at a local copy, or `--device cpu` to force
-CPU.
+seeds 1,2,3. The reported loss is a moving average of the past `floor(N/B)`
+mini-batch losses. Panel (a) draws SGD, SGDM-0.1/0.3/0.5; panel (b) draws
+SGDM-0.5/0.7/0.9/0.99 (no SGD curve, matching the paper). The IDX files are
+read directly (no `torchvision` needed); pass `--data-root data/MNIST` to point
+at a local copy, or `--device cpu` to force CPU.
 
 ## 5. Figure -> code map
 
 | Paper element | Script | Key parameters |
 |---|---|---|
 | Fig. 1 `fig:lambda` | `src/theory/lambda_heatmap.py` | `kappa=5` |
-| Fig. 2 `fig:linear` | `src/quadratic/quadratic_experiment.py` | `alpha=0.001`, `B=0.2N` |
+| Fig. 2 `fig:linear` | `src/quadratic/quadratic_experiment.py` | `alpha=0.001`, `B=0.2N`, `gamma={0.5,0.7,0.9}` (a) / `{0.97,0.98,0.99}` (b) |
 | Fig. 3 `fig:average` | `src/quadratic/quadratic_experiment.py` | `n0=200` |
 | Fig. 4 `fig:average2` | `src/quadratic/quadratic_experiment.py` | `n0=500` |
 | Fig. 5 `fig:dif-alpha` | `src/sensitivity/sensitivity_experiment.py` | `betas={0.8,0.9}` |
@@ -171,16 +176,31 @@ CPU.
 | Fig. 7 `fig:ave-alpha` | `src/sensitivity/sensitivity_experiment.py` | `n0=500` |
 | `fig:clt` | `src/clt/clt_experiment.py` | `n0=1000`, `n=2000`, `gamma=0.9` |
 | `fig:clt-alpha` | `src/clt/clt_experiment.py` | `n=1000`, `n0=500` |
-| Fig. 7 `fig:logistic` | `src/logistic/logistic_experiment.py` | `alpha=0.5` |
+| Fig. 7 `fig:logistic` | `src/logistic/logistic_experiment.py` | `alpha=0.5`, `gamma={0.3,0.5,0.7}` (a) / `{0.8,0.9}` (b) |
 | Fig. 8 `fig:logistic_ave` | `src/logistic/logistic_experiment.py` | `n0=10` |
 | Fig. 9 `fig:logistic_ave2` | `src/logistic/logistic_experiment.py` | `n0=40` |
-| Fig. 10 `fig:mnist` | `src/mnist/mnist_experiment.py` | `B=256`, `alpha=1.0` |
+| Fig. 10 `fig:mnist` | `src/mnist/mnist_experiment.py` | `B=256`, `alpha=1.0`, `{0.1,0.3,0.5}` (a) / `{0.5,0.7,0.9,0.99}` (b) |
 
 Notes on the panel split: figures `fig:linear`, `fig:average`, `fig:average2`,
 `fig:logistic`, `fig:logistic_ave`, `fig:logistic_ave2` and `fig:mnist` are
 each drawn as two panels in the paper, (a) *small* `gamma` and (b) *large*
 `gamma`. The scripts emit one PNG per panel, named `*_small.png` and
-`*_large.png`.
+`*_large.png`. The exact curve sets of each panel follow the published
+figures:
+
+| Figure (panel) | Curves drawn |
+|---|---|
+| `fig:linear`(a), `fig:average`(a), `fig:average2`(a) | SGD, SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-adap |
+| `fig:linear`(b), `fig:average`(b), `fig:average2`(b) | SGDM-adap, SGDM-0.97, SGDM-0.98, SGDM-0.99 |
+| `fig:logistic`(a), `fig:logistic_ave`(a), `fig:logistic_ave2`(a) | SGD, SGDM-0.3, SGDM-0.5, SGDM-0.7, SGDM-adap |
+| `fig:logistic`(b), `fig:logistic_ave`(b), `fig:logistic_ave2`(b) | SGD, SGDM-0.8, SGDM-0.9, SGDM-adap |
+| `fig:mnist`(a) | SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5 |
+| `fig:mnist`(b) | SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-0.99 (no SGD) |
+
+The `2-*.png`, `8-*.png`, `simulation1.png`, `alpha0001-*.png`,
+`clt-*.png` and `average_mnist.png` files that also live in the paper's
+`figures/` directory are **commented out** in the manuscript source and are
+therefore not reproduced here.
 
 ## 6. Notes on conventions
 

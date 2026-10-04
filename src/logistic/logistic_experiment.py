@@ -12,6 +12,9 @@ gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
 evaluated at the full-batch minimizer x^* (average adaptive weight ~ 0.75).
 
+Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
+Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap.
+
 The full-batch gradient descent used to locate x^* is the same procedure as in
 the paper (beta = 0, 10*K iterations, alpha = 0.5).
 
@@ -167,6 +170,10 @@ def main():
         plt.close(fig)
 
     # labels indices: 0=SGD,1=0.3,2=0.5,3=0.7,4=adap,5=0.8,6=0.9
+    # Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
+    # Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap  -- the paper keeps
+    # SGD in this panel as the reference curve (see fig:logistic(b),
+    # fig:logistic_ave(b) and fig:logistic_ave2(b)).
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [0, 4, 5, 6]
 

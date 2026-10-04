@@ -7,9 +7,12 @@ Reproduces Section 6.1 of the paper.
 Setting
 -------
 N = 20,000, d = 10, rho = 1 (so that the average condition number is 35/10),
-batch size B = 0.2 N, learning rate alpha = 0.001, K = 1200 iterations,
+batch size B = 0.2 N, learning rate alpha = 0.001, K = 1500 iterations,
 200 independent replications.  The adaptive momentum weight is
 gamma = ((1 - mu*alpha)/(1 + mu*alpha))^2, averaged value ~ 0.95.
+
+The (a) "small gamma" panels use gamma in {0.5, 0.7, 0.9}; the (b) "large
+gamma" panels use gamma in {0.97, 0.98, 0.99} (see Section 6.1 of the paper).
 
 Outputs (written to results/quadratic/):
     fig_linear_small.png / fig_linear_large.png          -> Figure 2(a),(b)
@@ -70,8 +73,11 @@ def main():
                 f"increase --K or reduce --ave_len.")
 
     # beta_set: fixed small / large momentum weights + adaptive (last slot)
-    beta_fixed_small = [0.1, 0.3, 0.5]
-    beta_fixed_large = [0.7, 0.9, 0.99]
+    # The paper's Figure 2/3/4(b) ("large gamma") uses gamma = 0.97, 0.98, 0.99
+    # (not 0.7/0.9): with K = 1500 these are the weights that still oscillate
+    # visibly, matching the published panels.
+    beta_fixed_small = [0.5, 0.7, 0.9]
+    beta_fixed_large = [0.97, 0.98, 0.99]
 
     # error[seed, K] for SGD; error_m[seed, K, n_beta] for SGDM
     err_sgd = np.zeros((args.num_seed, K))
@@ -119,22 +125,40 @@ def main():
 
     # ------------------------------------------------------------------ #
     # Figure 2: last-iterate ||x_t - x^*||
+    #
+    # Legend order / colours follow the published panels:
+    #   (a) small gamma : SGD, SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-adap
+    #   (b) large gamma : SGDM-adap, SGDM-0.97, SGDM-0.98, SGDM-0.99
     # ------------------------------------------------------------------ #
+    def _legend_order(betas):
+        """Return (order, is_adap) for each entry, paper-style.
+
+        For the small-gamma panel SGD comes first and SGDM-adap last; for the
+        large-gamma panel SGDM-adap comes first (matching q-large.png).
+        """
+        if betas is beta_fixed_large:
+            return [("adap", True)] + [(b, False) for b in betas]
+        return [("sgd", False)] + [(b, False) for b in betas] + [("adap", True)]
+
     def plot_last_iterate(betas, err_m, fname):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(err_sgd.mean(axis=0) ** 2, label="SGD", marker=MARKERS[0],
-                markevery=100, linestyle=LINESTYLES[3], color=COLORS[4],
-                zorder=5)
-        for j, beta in enumerate(betas):
-            ax.plot(err_m[:, :, j].mean(axis=0) ** 2,
-                    label=f"SGDM-{beta}", marker=MARKERS[j + 1],
-                    markevery=100, linestyle=LINESTYLES[j])
-        ax.plot(err_m[:, :, -1].mean(axis=0) ** 2, label="SGDM-adap",
-                marker=MARKERS[-1], markevery=100, linestyle="--",
-                color=COLORS[0])
+        for j, (key, is_adap) in enumerate(_legend_order(betas)):
+            if key == "sgd":
+                ax.plot(err_sgd.mean(axis=0) ** 2, label="SGD",
+                        marker=MARKERS[0], markevery=100,
+                        linestyle=LINESTYLES[3], color=COLORS[4], zorder=5)
+            elif is_adap:
+                ax.plot(err_m[:, :, -1].mean(axis=0) ** 2, label="SGDM-adap",
+                        marker=MARKERS[-1], markevery=100, linestyle="--",
+                        color=COLORS[0], zorder=6)
+            else:
+                ax.plot(err_m[:, :, betas.index(key)].mean(axis=0) ** 2,
+                        label=f"SGDM-{key}", marker=MARKERS[j],
+                        markevery=100, linestyle=LINESTYLES[j % 3],
+                        color=COLORS[j])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||x_t-x^*||^2$")
         ax.set_yscale("log")
@@ -155,16 +179,19 @@ def main():
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(ave_sgd[n0].mean(axis=0) ** 2, label="SGD",
-                marker=MARKERS[0], markevery=100, linestyle=LINESTYLES[3],
-                color=COLORS[4], zorder=5)
-        for j, beta in enumerate(betas):
-            ax.plot(ave_m[n0][:, :, j].mean(axis=0) ** 2,
-                    label=f"SGDM-{beta}", marker=MARKERS[j + 1],
-                    markevery=100, linestyle=LINESTYLES[j])
-        ax.plot(ave_m[n0][:, :, -1].mean(axis=0) ** 2, label="SGDM-adap",
-                marker=MARKERS[-1], markevery=100, linestyle="--",
-                color=COLORS[0])
+        for j, (key, is_adap) in enumerate(_legend_order(betas)):
+            if key == "sgd":
+                ax.plot(ave_sgd[n0].mean(axis=0) ** 2, label="SGD",
+                        marker=MARKERS[0], markevery=100,
+                        linestyle=LINESTYLES[3], color=COLORS[4], zorder=5)
+            elif is_adap:
+                ax.plot(ave_m[n0][:, :, -1].mean(axis=0) ** 2,
+                        label="SGDM-adap", marker=MARKERS[-1], markevery=100,
+                        linestyle="--", color=COLORS[0], zorder=6)
+            else:
+                ax.plot(ave_m[n0][:, :, betas.index(key)].mean(axis=0) ** 2,
+                        label=f"SGDM-{key}", marker=MARKERS[j], markevery=100,
+                        linestyle=LINESTYLES[j % 3], color=COLORS[j])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||\bar{x}_{n_0+t}-x^*||^2$")
         ax.set_yscale("log")
