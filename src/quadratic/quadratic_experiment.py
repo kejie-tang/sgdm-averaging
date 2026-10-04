@@ -1,8 +1,6 @@
 """
-Figure 2 (fig:linear): performance of SGD and SGDM on the quadratic loss.
-Figure 3 (fig:average) / Figure 4 (fig:average2): averaged SGD and SGDM.
-
-Reproduces Section 6.1 of the paper.
+Figures 2-4: performance of SGD and SGDM (and their averaged versions) on the
+quadratic loss.
 
 Setting
 -------
@@ -12,7 +10,7 @@ batch size B = 0.2 N, learning rate alpha = 0.001, K = 1500 iterations,
 gamma = ((1 - mu*alpha)/(1 + mu*alpha))^2, averaged value ~ 0.95.
 
 The (a) "small gamma" panels use gamma in {0.5, 0.7, 0.9}; the (b) "large
-gamma" panels use gamma in {0.97, 0.98, 0.99} (see Section 6.1 of the paper).
+gamma" panels use gamma in {0.97, 0.98, 0.99}.
 
 Outputs (written to results/quadratic/):
     fig_linear_small.png / fig_linear_large.png          -> Figure 2(a),(b)
@@ -200,9 +198,9 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    # Figures 3 & 4 (fig:average, fig:average2): one pair of panels per n0.
-    # By default --n0_list = 200 500, reproducing Fig. 3 (n0 = 200) and
-    # Fig. 4 (n0 = 500), each as (a) small gamma and (b) large gamma.
+    # Figures 3 & 4: one pair of panels (a)/(b) per n0.
+    # By default --n0_list = 200 500, reproducing Figure 3 (n0 = 200) and
+    # Figure 4 (n0 = 500), each as (a) small gamma and (b) large gamma.
     for n0 in args.n0_list:
         plot_averaged(n0, beta_fixed_small, ave_m_small,
                       f"fig_average_small_n0_{n0}.png")

@@ -25,17 +25,17 @@ python src/theory/lambda_heatmap.py
 echo ">>> Figures 2-4: quadratic loss"
 python src/quadratic/quadratic_experiment.py --num_seed "$SEED"
 
-echo ">>> Figures 5-7: sensitivity to the learning rate"
+echo ">>> Figures 6-8: sensitivity to the learning rate"
 python src/sensitivity/sensitivity_experiment.py --num_seed "$SEED"
 
-echo ">>> fig:clt and fig:clt-alpha"
+echo ">>> Figures 5 and 9: asymptotic normality (CLT)"
 python src/clt/clt_experiment.py --num_seed "$SEED_CLT" \
     --num_seed_cov "$SEED_CLT"
 
-echo ">>> Figures 7-9: logistic loss"
+echo ">>> Figures 10-12: logistic loss"
 python src/logistic/logistic_experiment.py --num_seed "$SEED"
 
-echo ">>> Figure 10: MNIST"
+echo ">>> Figure 13: MNIST"
 python src/mnist/mnist_experiment.py
 
 echo ">>> all figures written to results/"

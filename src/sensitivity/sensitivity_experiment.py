@@ -1,8 +1,5 @@
 """
-Figures 5-6 (fig:dif-alpha, fig:sen-alpha) and Figure 7 (fig:ave-alpha):
-sensitivity of SGD and SGDM to the learning rate.
-
-Reproduces Section 6.2 of the paper.
+Figures 6-8: sensitivity of SGD and SGDM to the learning rate.
 
 Setting
 -------
@@ -10,13 +7,13 @@ N = 20,000, d = 10, A_i = (V_i^T V_i + 1.03 I)/1.04 so that the average
 condition number is L/mu = 26/1.  Batch size B = 0.2 N.
 Learning rates alpha in {2^1, 2^0, 2^-1, ..., 2^-9}.
 
-Figure 5 (fig:dif-alpha):
+Figure 6:
     final ||x_T - x^*||^2 at T = 500 for SGD and SGDM (gamma = 0.8, 0.9).
     SGD fails for alpha >= 2^-3; SGDM converges up to 2^-1 (gamma=0.8) / 2^0
     (gamma=0.9).
-Figure 6 (fig:sen-alpha):
+Figure 7:
     finite-sample error at T = 500 vs. the learning rate.
-Figure 7 (fig:ave-alpha):
+Figure 8:
     averaged SGD / SGDM with n0 = 500.
 
 Outputs (results/sensitivity/):
@@ -114,7 +111,7 @@ def main():
                 sq = ((run - x_star) ** 2).sum(axis=(1, 2))
                 ave_sgdm[seed, :, bi_, ai_] = np.where(sq > 1e6, np.nan, sq)
 
-    # ---- Figure 5: dif-alpha ----
+    # ---- Figure 6: dif-alpha ----
     fig = plt.figure(figsize=(8, 4), dpi=150)
     spec = gridspec.GridSpec(1, 2, left=0.08, right=0.98, top=0.92,
                              bottom=0.15, wspace=0.3, figure=fig)
@@ -134,7 +131,7 @@ def main():
                 bbox_inches="tight")
     plt.close(fig)
 
-    # ---- Figure 6: sen-alpha -- final error vs alpha ----
+    # ---- Figure 7: sen-alpha -- final error vs alpha ----
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
@@ -152,7 +149,7 @@ def main():
                 bbox_inches="tight")
     plt.close(fig)
 
-    # ---- Figure 7: ave-alpha (gamma=0.8) ----
+    # ---- Figure 8: ave-alpha (gamma=0.8) ----
     fig = plt.figure(figsize=(6, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.13, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])

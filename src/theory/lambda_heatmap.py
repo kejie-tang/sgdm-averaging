@@ -1,5 +1,5 @@
 """
-Figure 1 (fig:lambda): contour/heatmap of the spectral radius lambda.
+Figure 1: contour/heatmap of the spectral radius of Gamma.
 
 Reproduces the theoretical figure in Section 3.1 of the paper (the
 "Linear convergence to a local neighborhood" discussion).

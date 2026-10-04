@@ -1,7 +1,5 @@
 """
-Figure 10 (fig:mnist): multinomial logistic regression on MNIST.
-
-Reproduces Section 6.6 of the paper.
+Figure 13: multinomial logistic regression on MNIST.
 
 Setting
 -------
@@ -12,7 +10,7 @@ momentum weights gamma in {0.1, 0.3, 0.5, 0.7, 0.9, 0.99}, seeds 1, 2, 3.
 The reported training loss at iteration t is a moving average of the past
 floor(N/B) mini-batch losses (as stated in the paper).
 
-Panel layout of Figure 10 (fig:mnist):
+Panel layout:
     (a) "Small gamma": SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5
     (b) "Large gamma": SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-0.99
         (the paper's panel (b) contains no SGD curve)
@@ -29,7 +27,7 @@ torchvision.  Put the four raw files under ``data/MNIST/raw/``:
 Requires: torch only (see requirements.txt).
 
 Outputs (results/mnist/):
-    fig_mnist_small.png / fig_mnist_large.png  -> Figure 10(a),(b)
+    fig_mnist_small.png / fig_mnist_large.png  -> Figure 13(a),(b)
     mnist_losses.npz
 
 Run:  python src/mnist/mnist_experiment.py [--device cuda] [--download]
@@ -221,9 +219,9 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    # Figure 10(a): SGD, SGDM-0.1, 0.3, 0.5
+    # Figure 13(a): SGD, SGDM-0.1, 0.3, 0.5
     plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 2.6), include_sgd=True)
-    # Figure 10(b): SGDM-0.5, 0.7, 0.9, 0.99  (no SGD in the paper's panel)
+    # Figure 13(b): SGDM-0.5, 0.7, 0.9, 0.99  (no SGD in the paper's panel)
     plot("fig_mnist_large.png", [0.5, 0.7, 0.9, 0.99], (0.2, 2.6),
          include_sgd=False)
 

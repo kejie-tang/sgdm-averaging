@@ -1,8 +1,5 @@
 """
-Figure 7 (fig:logistic) and Figures 8-9 (fig:logistic_ave, fig:logistic_ave2):
-SGD / SGDM / averaged SGD / averaged SGDM on the logistic loss.
-
-Reproduces Section 6.4 of the paper.
+Figures 10-12: SGD / SGDM / averaged SGD / averaged SGDM on the logistic loss.
 
 Setting
 -------
@@ -18,10 +15,10 @@ Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap.
 The full-batch gradient descent used to locate x^* is the same procedure as in
 the paper (beta = 0, 10*K iterations, alpha = 0.5).
 
-Outputs (results/logistic/), one file per paper sub-figure:
-    fig_logistic_small.png / fig_logistic_large.png   -> Figure 7(a),(b)
-    fig_logistic_ave_small.png / _large.png           -> Figure 8(a),(b),  n0=10
-    fig_logistic_ave2_small.png / _large.png          -> Figure 9(a),(b),  n0=40
+Outputs (results/logistic/), one file per paper panel:
+    fig_logistic_small.png / fig_logistic_large.png   -> Figure 10(a),(b)
+    fig_logistic_ave_small.png / _large.png           -> Figure 11(a),(b),  n0=10
+    fig_logistic_ave2_small.png / _large.png          -> Figure 12(a),(b),  n0=40
     logistic_raw.npz
 
 Run:  python src/logistic/logistic_experiment.py --num_seed 200
@@ -79,7 +76,7 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--batch_frac", type=float, default=0.2)
-    # the paper uses n0 = 10 for fig:logistic_ave and n0 = 40 for fig:logistic_ave2
+    # the paper uses n0 = 10 for Figure 11 and n0 = 40 for Figure 12
     ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40])
     ap.add_argument("--ave_len", type=int, default=100)
     ap.add_argument("--out", type=str,
@@ -172,12 +169,12 @@ def main():
     # labels indices: 0=SGD,1=0.3,2=0.5,3=0.7,4=adap,5=0.8,6=0.9
     # Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
     # Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap  -- the paper keeps
-    # SGD in this panel as the reference curve (see fig:logistic(b),
-    # fig:logistic_ave(b) and fig:logistic_ave2(b)).
+    # SGD in this panel as the reference curve (see Figure 10(b),
+    # Figure 11(b) and Figure 12(b)).
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [0, 4, 5, 6]
 
-    # ---- Figure 7 (fig:logistic): last iterate, small/large gamma ----
+    # ---- Figure 10: last iterate, small/large gamma ----
     plot_single("fig_logistic_small.png", err_last, idx_small,
                 r"$||x_t-x^*||^2$")
     plot_single("fig_logistic_large.png", err_last, idx_large,
