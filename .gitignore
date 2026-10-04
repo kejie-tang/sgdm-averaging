@@ -3,8 +3,14 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# keep the MNIST raw files out of git by default (publicly available online)
-data/MNIST/raw/*.gz
+# ---------------------------------------------------------------------------
+# MNIST is a public dataset and is NOT distributed with this repository.
+# The scripts download it on demand (src/mnist/mnist_experiment.py --download)
+# or you place the files under data/MNIST/raw/ yourself.  Everything the
+# dataset touches is ignored so the repository never carries a 100+ MB copy.
+# ---------------------------------------------------------------------------
+data/MNIST/
+data/*/MNIST/
 
 # results/ is tracked on purpose (it holds the paper's figures and raw arrays),
 # but ignore ad-hoc scratch output directories.

@@ -1,15 +1,31 @@
 # Data
 
-## Simulations
+**No data files are distributed with this repository.** Everything needed to
+reproduce the paper is either generated in-code or downloaded from its public
+source, as described below.
 
-The quadratic-loss and logistic-loss experiments (Sections 6.1-6.5 of the
-paper) use **synthetic data generated in-code** from the seeds and parameter
-values described in the paper. No data files are needed; see
-`src/sgdm_core.py` (`generate_quadratic_data`, `generate_logistic_data`).
+## Simulations (Sections 6.1-6.5)
+
+The quadratic-loss and logistic-loss experiments use **synthetic data generated
+in-code** from the seeds and parameter values given in the paper. Nothing needs
+to be downloaded; the generators live in `src/sgdm_core.py`
+(`generate_quadratic_data`, `generate_logistic_data`).
 
 ## MNIST (Section 6.6)
 
-The MNIST experiment reads the four standard IDX files from
+The MNIST experiment uses the public MNIST dataset
+(Yann LeCun, Corinna Cortes, Christopher Burges).
+
+* **Source / download page:** <http://yann.lecun.com/exdb/mnist/>
+* **Mirror used by the scripts:** <https://ossci-datasets.s3.amazonaws.com/mnist/>
+
+The script fetches the four standard IDX files automatically:
+
+```bash
+python src/mnist/mnist_experiment.py --download
+```
+
+They are placed (and expected) under
 
 ```
 data/MNIST/raw/
@@ -19,12 +35,10 @@ data/MNIST/raw/
     t10k-labels-idx1-ubyte(.gz)
 ```
 
-These files are publicly available and are downloaded automatically by
+If your machine has no internet access, download those four files from the
+page above and drop them into `data/MNIST/raw/` by hand; the script also reads
+the `.gz` versions directly.
 
-```bash
-python src/mnist/mnist_experiment.py --download
-```
-
-if `--download` is passed (or you may place them here yourself). MNIST is
-distributed under its own terms (Yann LeCun, Corinna Cortes, Christopher
-Burges) and is not re-licensed by this repository.
+MNIST is distributed under its own terms and is **not** re-licensed by this
+repository. The `.gz` archives are git-ignored (see `.gitignore`) so that no
+dataset copies are committed.

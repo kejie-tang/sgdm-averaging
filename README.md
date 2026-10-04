@@ -85,15 +85,21 @@ seeds described in the paper.
 
 ## 3. Data
 
+**No data files are shipped with this repository;** everything is either
+generated in-code or downloaded from its public source.
+
 * **Simulations** (quadratic and logistic): synthetic, generated in-code from
   `N = 20,000`, `d = 10` as described in Sections 6.1 and 6.4 of the paper.
   No external data files are required.
-* **MNIST** (Section 6.6): the four standard IDX files are placed under
-  `data/MNIST/raw/`. They are publicly available from
-  <http://yann.lecun.com/exdb/mnist/> (mirror:
-  <https://ossci-datasets.s3.amazonaws.com/mnist/>) and are **not** required
-  to be redistributed by us; the script can fetch them automatically with
-  `--download`.
+* **MNIST** (Section 6.6): public dataset (LeCun et al.).
+  Download page: <http://yann.lecun.com/exdb/mnist/>
+  (mirror used by the scripts:
+  <https://ossci-datasets.s3.amazonaws.com/mnist/>). The script fetches the
+  four standard IDX files automatically with `--download`; if the machine is
+  offline, download them from the page above and place them under
+  `data/MNIST/raw/` by hand. MNIST is not re-licensed by this repository.
+
+See `data/README.md` for details.
 
 ## 4. Reproducing each figure
 
