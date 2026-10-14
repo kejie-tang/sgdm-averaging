@@ -132,6 +132,31 @@ def make_batch_schedule(n, batch_size, K, seed, replace=False):
     return idx
 
 
+def batch_gradient_sequence(Ai, bi, batch_size, schedule, K):
+    """Pre-compute the mean mini-batch gradient at every iteration.
+
+    Iteration k sees the batch ``schedule[k*batch_size:(k+1)*batch_size]``, so
+    the mini-batch gradient is ``A_batch @ x + b_batch`` with
+    ``A_batch = mean_i A_i``, ``b_batch = mean_i b_i`` over that batch.  Because
+    the batches do not depend on the learning rate or the momentum weight, the
+    same pair of arrays can be replayed by *every* configuration in a sweep
+    (as in Figures 2-4, 6, 7, 9-11).  Doing so turns a whole sweep into a single
+    pass over the data and is numerically identical to recomputing them.
+
+    Returns
+    -------
+    (A_seq, b_seq) : ((K, p, p), (K, p, 1))
+    """
+    p = Ai.shape[1]
+    A_seq = np.empty((K, p, p))
+    b_seq = np.empty((K, p, 1))
+    for k in range(K):
+        i = schedule[k * batch_size:(k + 1) * batch_size]
+        A_seq[k] = Ai[i].mean(axis=0)
+        b_seq[k] = bi[i].mean(axis=0)
+    return A_seq, b_seq
+
+
 # --------------------------------------------------------------------------- #
 # Iterates
 # --------------------------------------------------------------------------- #
@@ -146,36 +171,49 @@ def _step_size(alpha, k):
     return alpha[k]
 
 
-def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K):
+def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K,
+            A_seq=None, b_seq=None):
     """Last-iterate SGD. Returns the (K, p, 1) trajectory.
 
     ``alpha`` is either a scalar or a length-K per-iteration schedule.
+
+    ``A_seq``/``b_seq`` are the optional output of
+    :func:`batch_gradient_sequence`; when supplied they are replayed instead of
+    re-averaging the mini-batches (identical results, much faster sweeps).
     """
     p = initial.shape[0]
     x = initial.copy()
     traj = np.empty((K, p, 1))
     for k in range(K):
-        i = schedule[k * batch_size:(k + 1) * batch_size]
-        A_batch = Ai[i].mean(axis=0)
-        b_batch = bi[i].mean(axis=0)
+        if A_seq is None:
+            i = schedule[k * batch_size:(k + 1) * batch_size]
+            A_batch = Ai[i].mean(axis=0)
+            b_batch = bi[i].mean(axis=0)
+        else:
+            A_batch, b_batch = A_seq[k], b_seq[k]
         traj[k] = x
         x = x - _step_size(alpha, k) * (A_batch @ x + b_batch)
     return traj
 
 
-def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K):
+def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K,
+             A_seq=None, b_seq=None):
     """Last-iterate SGDM. Returns the (K, p, 1) trajectory.
 
     ``alpha`` is either a scalar or a length-K per-iteration schedule.
+    ``A_seq``/``b_seq`` behave as in :func:`run_sgd`.
     """
     p = initial.shape[0]
     x = initial.copy()
     m = np.zeros((p, 1))
     traj = np.empty((K, p, 1))
     for k in range(K):
-        i = schedule[k * batch_size:(k + 1) * batch_size]
-        A_batch = Ai[i].mean(axis=0)
-        b_batch = bi[i].mean(axis=0)
+        if A_seq is None:
+            i = schedule[k * batch_size:(k + 1) * batch_size]
+            A_batch = Ai[i].mean(axis=0)
+            b_batch = bi[i].mean(axis=0)
+        else:
+            A_batch, b_batch = A_seq[k], b_seq[k]
         traj[k] = x
         m = gamma * m + (1.0 - gamma) * (A_batch @ x + b_batch)
         x = x - _step_size(alpha, k) * m
@@ -239,11 +277,15 @@ def asymptotic_covariance(Ai, bi, x_star, A, batch_size):
 
 
 def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, K, n0,
-                   cov, gamma=0.0, phi=None, seed=0):
+                   cov, gamma=0.0, phi=None, seed=0, A_seq=None, b_seq=None):
     """One replication of the projected CLT statistic Z (Eq. (def:z)).
 
     Returns phi^T (xbar_{n0:n} - x^*) * sqrt(n-n0) / sqrt(phi^T Sigma phi),
     which is asymptotically N(0,1) by Corollary 3.
+
+    ``A_seq``/``b_seq`` are forwarded to :func:`run_sgd` / :func:`run_sgdm`;
+    supplying them lets a whole sweep over (gamma, alpha) share one pass over
+    the data.
     """
     p = initial.shape[0]
     if phi is None:
@@ -251,10 +293,11 @@ def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, K, n0,
         phi = rng.rand(p, 1)
         phi = phi / np.linalg.norm(phi)
     if gamma == 0.0:
-        traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K)
+        traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K,
+                       A_seq=A_seq, b_seq=b_seq)
     else:
         traj = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                        alpha, gamma, K)
+                        alpha, gamma, K, A_seq=A_seq, b_seq=b_seq)
     x_age = traj[n0:].mean(axis=0)
     num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(K - n0)
     den = np.sqrt(float((phi.T @ cov @ phi).sum()))

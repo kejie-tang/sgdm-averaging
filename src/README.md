@@ -19,6 +19,30 @@ One sub-directory per group of figures. All scripts import the shared module
 
 `../scripts/run_all.sh` runs everything (`FAST=1` for a reduced-fidelity pass).
 
+## The shared module `sgdm_core.py`
+
+Every script imports the data generators, the iterates and the derived
+quantities from `sgdm_core.py`, so the conventions cannot drift between
+experiments:
+
+| Function | Purpose |
+|---|---|
+| `generate_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu` |
+| `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)` |
+| `make_batch_schedule` | the pre-sampled index sequence shared by SGD and SGDM |
+| `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
+| `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
+| `averaged_errors` / `last_iterate_errors` | the two error curves of the figures |
+| `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities |
+
+`batch_gradient_sequence` is a pure speed-up: a learning-rate / momentum sweep
+replays the *same* mini-batches, so the batch gradients are formed once per
+replication and handed to every configuration through the optional
+`A_seq` / `b_seq` arguments of `run_sgd`, `run_sgdm` and `clt_projection`. The
+numbers are bit-for-bit what recomputing them would give; only the run time
+changes (the quadratic experiment, for instance, drops from ~27 s to ~4 s per
+replication).
+
 ## Relationship to the original experiment code
 
 The scripts re-implement the experiments from notebook prototypes and make them
@@ -34,10 +58,17 @@ in `../README.md` (Section 5).
 * decaying (Fig 7)        <- `sgd_and_sgdm_decaying2的副本.ipynb`
 * CLT (Figs 8, 12)        <- `CLT.ipynb`, `clt.ipynb`
 * sensitivity (Figs 9-11) <- `多线.py` (learning-rate grid), `sgd_and_sgdm_repeat-save*.ipynb`
-* MNIST tanh (Figs 13-15) <- `nn_models.py`, `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`
-* CIFAR (Fig 16)          <- `cifar05.ipynb` (original training script lost)
+* MNIST tanh (Figs 13-15) <- `nn_models.py`, `logistic_mnist_fixed_alpha_beta.py`,
+  `average.ipynb`, `logs/`
+* CIFAR (Fig 16)          <- `cifar05.ipynb` (plotting), `cifar/logs 2/`
+  (training logs; the training script itself was lost)
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb`
-* MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`
+* MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`,
+  `logs-save-logistic/`
+
+The MNIST / CIFAR scripts reproduce the loss curves with the authors' reporting
+rule (`moving_ave2` in the notebooks): the value at iteration t is the running
+mean of the per-iteration losses over iterations 1..t, averaged over seeds.
 
 ## The `Net` model (Figures 13-15)
 

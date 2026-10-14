@@ -12,15 +12,16 @@ gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
 evaluated at the full-batch minimizer x^* (average adaptive weight ~ 0.75).
 
 Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
-Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap.
+Panel (b) "large gamma": SGDM-adap, SGDM-0.8, SGDM-0.9 (no SGD curve, as in
+the published panels).
 
 The full-batch gradient descent used to locate x^* is the same procedure as in
 the paper (beta = 0, 10*K iterations, alpha = 0.5).
 
 Outputs (results/logistic/), one file per paper panel:
-    fig_logistic_small.png / fig_logistic_large.png   -> Figure EC.1(a),(b)
-    fig_logistic_ave_small.png / _large.png           -> Figure EC.2(a),(b),  n0=10
-    fig_logistic_ave2_small.png / _large.png          -> Figure EC.3(a),(b),  n0=40
+    fig_ec1_small.png / fig_ec1_large.png   -> Figure EC.1(a),(b)
+    fig_ec2_small.png / fig_ec2_large.png   -> Figure EC.2(a),(b),  n0 = 10
+    fig_ec3_small.png / fig_ec3_large.png   -> Figure EC.3(a),(b),  n0 = 40
     logistic_raw.npz
 
 Run:  python src/logistic/logistic_experiment.py --num_seed 200
@@ -149,49 +150,57 @@ def main():
     labels = ["SGD", "SGDM-0.3", "SGDM-0.5", "SGDM-0.7", "SGDM-adap",
               "SGDM-0.8", "SGDM-0.9"]
 
-    def plot_single(fname, curve, idxs, ylab, ylim=None):
-        """curve: (num_seed, T, n_beta); idxs: keyed by label-order."""
+    # (colour, marker, linestyle) per curve, read off the published
+    # Figures EC.1-EC.3.
+    SMALL_STYLE = [("#9467bd", "o", ":"),    # SGD
+                   ("#1f77b4", "s", "--"),   # SGDM-0.3
+                   ("#ff7f0e", "o", ":"),    # SGDM-0.5
+                   ("#2ca02c", "P", "-."),   # SGDM-0.7
+                   ("#d62728", "*", "-")]    # SGDM-adap
+    LARGE_STYLE = [("#d62728", "*", "-"),    # SGDM-adap
+                   ("#1f77b4", "h", ":"),    # SGDM-0.8
+                   ("#ff7f0e", "P", "-.")]   # SGDM-0.9
+
+    def plot_single(fname, curve, idxs, styles, ylab):
+        """curve: (num_seed, T, n_beta); idxs: column indices, in legend order."""
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15,
             figure=fig)[0])
-        for mk, j in enumerate(idxs):
+        for j, (color, marker, ls) in zip(idxs, styles):
             ax.plot(curve[:, :, j].mean(axis=0) ** 2, label=labels[j],
-                    marker=MARKERS[mk], markevery=8,
-                    linestyle=LINESTYLES[mk % 4])
+                    marker=marker, markevery=20, linestyle=ls, color=color)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(ylab)
         ax.set_yscale("log")
-        if ylim:
-            ax.set_ylim(ylim)
+        ax.set_xlim([0, 100])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
     # labels indices: 0=SGD,1=0.3,2=0.5,3=0.7,4=adap,5=0.8,6=0.9
     # Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
-    # Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap  -- the paper keeps
-    # SGD in this panel as the reference curve (see Figure EC.1(b),
-    # Figure EC.2(b) and Figure EC.3(b)).
+    # Panel (b) "large gamma": SGDM-adap, SGDM-0.8, SGDM-0.9 -- the published
+    # panels (EC.1(b), EC.2(b), EC.3(b)) contain no SGD reference curve.
     idx_small = [0, 1, 2, 3, 4]
-    idx_large = [0, 4, 5, 6]
+    idx_large = [4, 5, 6]
 
     # ---- Figure EC.1: last iterate, small/large gamma ----
-    plot_single("fig_logistic_small.png", err_last, idx_small,
+    plot_single("fig_ec1_small.png", err_last, idx_small, SMALL_STYLE,
                 r"$||x_t-x^*||^2$")
-    plot_single("fig_logistic_large.png", err_last, idx_large,
+    plot_single("fig_ec1_large.png", err_last, idx_large, LARGE_STYLE,
                 r"$||x_t-x^*||^2$")
 
     # ---- Figures EC.2-EC.3: averaged, per n0, small/large gamma ----
     n0_first, n0_second = args.n0_list[0], args.n0_list[-1]
-    plot_single("fig_logistic_ave_small.png", err_ave[n0_first], idx_small,
+    plot_single("fig_ec2_small.png", err_ave[n0_first], idx_small, SMALL_STYLE,
                 r"$||\bar{x}_{n_0+t}-x^*||^2$")
-    plot_single("fig_logistic_ave_large.png", err_ave[n0_first], idx_large,
+    plot_single("fig_ec2_large.png", err_ave[n0_first], idx_large, LARGE_STYLE,
                 r"$||\bar{x}_{n_0+t}-x^*||^2$")
-    plot_single("fig_logistic_ave2_small.png", err_ave[n0_second], idx_small,
-                r"$||\bar{x}_{n_0+t}-x^*||^2$")
-    plot_single("fig_logistic_ave2_large.png", err_ave[n0_second], idx_large,
-                r"$||\bar{x}_{n_0+t}-x^*||^2$")
+    plot_single("fig_ec3_small.png", err_ave[n0_second], idx_small,
+                SMALL_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$")
+    plot_single("fig_ec3_large.png", err_ave[n0_second], idx_large,
+                LARGE_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$")
 
     np.savez_compressed(os.path.join(args.out, "logistic_raw.npz"),
                         err_last=err_last, gamma_mean=gamma_mean,

@@ -9,10 +9,11 @@ The statistic (Eq. (def:z))
         * sum_{t=n0+1}^n omega^T (x_t - x^*) / sqrt(n - n0)
 is asymptotically N(0, 1) by Corollary 3.
 
-Figure 8 : frequency of Y for averaged SGD and averaged SGDM, gamma = 0.9,
-           n0 = 1000, n = 2000.
+Figure 8 : frequency of Z for averaged SGD and averaged SGDM, gamma = 0.9,
+           n0 = 1000, n = 2000, over 1000 trials.
 Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
-           and SGDM (gamma = 0.8, 0.9).
+           and SGDM (gamma = 0.8, 0.9), with n = 1000 iterations, a burn-in of
+           n0 = 500 and 1000 trials per learning rate (Section 5.2).
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz
@@ -30,8 +31,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    asymptotic_covariance, clt_projection, generate_quadratic_data,
-    make_batch_schedule,
+    asymptotic_covariance, batch_gradient_sequence, clt_projection,
+    generate_quadratic_data, make_batch_schedule,
 )
 
 import matplotlib
@@ -47,11 +48,13 @@ def hist_figure(z, gamma_label, fname, out_dir):
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
-    ax.hist(z, range=(-5, 5), bins=20, density=True, rwidth=0.8,
-            label=gamma_label)
+    # The published panels draw the N(0,1) reference first, so that it heads
+    # the legend.
     x = np.linspace(-5, 5, 200)
     ax.plot(x, np.exp(-x ** 2 / 2) / np.sqrt(2 * np.pi), "k", lw=2,
             label="N(0,1)")
+    ax.hist(z, range=(-5, 5), bins=20, density=True, rwidth=0.8,
+            label=gamma_label)
     ax.set_ylim([0, 0.45])
     ax.set_xlabel(r"$Z$")
     ax.set_ylabel("density")
@@ -70,12 +73,15 @@ def main():
     ap.add_argument("--K_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
     ap.add_argument("--gamma_hist", type=float, default=0.9)
-    # coverage experiment
-    ap.add_argument("--K_cov", type=int, default=500)
-    ap.add_argument("--n0_cov", type=int, default=200)
+    # coverage experiment.
+    # The paper (Section 5.2, Figure 12) uses n = 1000 iterations, a burn-in of
+    # n0 = 500 and 1000 trials for each learning rate.
+    ap.add_argument("--K_cov", type=int, default=1000)
+    ap.add_argument("--n0_cov", type=int, default=500)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
+    # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
     ap.add_argument("--exps", type=int, nargs="+",
-                    default=[-1, -3, -5, -7, -9])
+                    default=list(range(2, -12, -1)))
     ap.add_argument("--betas", type=float, nargs="+", default=[0.8, 0.9])
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
@@ -116,12 +122,17 @@ def main():
             print(f"[clt-hist] seed {seed}/{args.num_seed}", flush=True)
         schedule = make_batch_schedule(n, batch_size, args.K_hist, seed,
                                        replace=True)
+        # averaged SGD and averaged SGDM replay the same batches
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule,
+                                               args.K_hist)
         z_sgd[seed], _ = clt_projection(
             Ai, bi, x_star, initial, batch_size, schedule, alpha_hist,
-            args.K_hist, args.n0_hist, cov, gamma=0.0, phi=phi)
+            args.K_hist, args.n0_hist, cov, gamma=0.0, phi=phi,
+            A_seq=A_seq, b_seq=b_seq)
         z_sgdm[seed], _ = clt_projection(
             Ai, bi, x_star, initial, batch_size, schedule, alpha_hist,
-            args.K_hist, args.n0_hist, cov, gamma=args.gamma_hist, phi=phi)
+            args.K_hist, args.n0_hist, cov, gamma=args.gamma_hist, phi=phi,
+            A_seq=A_seq, b_seq=b_seq)
 
     print(f"[clt-hist] mean/std SGD  = {z_sgd.mean():.3f} / {z_sgd.std():.3f}")
     print(f"[clt-hist] mean/std SGDM = {z_sgdm.mean():.3f} / {z_sgdm.std():.3f}")
@@ -157,18 +168,21 @@ def main():
             print(f"[clt-cov] seed {seed}/{args.num_seed_cov}", flush=True)
         schedule = make_batch_schedule(n, batch_size, args.K_cov, seed,
                                        replace=False)
+        # Every (gamma, alpha) pair in the sweep replays the same batches, so
+        # the batch gradients are formed once per trial.
+        A_seq, b_seq = batch_gradient_sequence(Ai2, bi2, batch_size, schedule,
+                                               args.K_cov)
         for ai_, alpha in enumerate(alphas):
             z, phi_ = clt_projection(
                 Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
                 args.K_cov, args.n0_cov, cov2, gamma=0.0,
-                phi=None, seed=seed)
-            x_age = None  # coverage computed only on the aggregate Z
+                phi=None, seed=seed, A_seq=A_seq, b_seq=b_seq)
             cover_sgd[seed, ai_] = 1.0 if abs(z) <= z1_96 else 0.0
             for bi_, beta in enumerate(args.betas):
                 zb, _ = clt_projection(
                     Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
                     args.K_cov, args.n0_cov, cov2, gamma=beta,
-                    phi=phi_, seed=seed)
+                    phi=phi_, seed=seed, A_seq=A_seq, b_seq=b_seq)
                 cover_sgdm[seed, bi_, ai_] = 1.0 if abs(zb) <= z1_96 else 0.0
 
     fig = plt.figure(figsize=(5, 4), dpi=150)

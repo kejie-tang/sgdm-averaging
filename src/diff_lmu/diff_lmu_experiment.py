@@ -36,8 +36,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    adaptive_gamma, averaged_errors, generate_quadratic_data,
-    last_iterate_errors, make_batch_schedule, run_sgd, run_sgdm,
+    adaptive_gamma, averaged_errors, batch_gradient_sequence,
+    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
+    run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -85,6 +86,8 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[diff-Lmu] seed {seed}/{args.num_seed}", flush=True)
+        # The mini-batch schedule depends only on the seed, not on rho.
+        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
         for j, rho in enumerate(rho_list):
             data = generate_quadratic_data(n, p, seed, rho=rho, shift=10.0)
             Ai, bi = data["Ai"], data["bi"]
@@ -93,16 +96,18 @@ def main():
                 kappa_mean[j] = data["L"] / mu
             gamma = adaptive_gamma(mu, args.alpha)
             gamma_mean[seed, j] = gamma
-            schedule = make_batch_schedule(n, batch_size, K, seed,
-                                           replace=False)
+            # SGD and SGDM share the batches, so the batch gradients are formed
+            # once per (replication, rho) and replayed by both methods.
+            A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size,
+                                                   schedule, K)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                           args.alpha, K)
+                           args.alpha, K, A_seq=A_seq, b_seq=b_seq)
             err_sgd[seed, :, j] = last_iterate_errors(traj, x_star)
             ave_sgd[seed, :, j] = averaged_errors(traj, x_star, n0, ave_len)
 
             traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                              args.alpha, gamma, K)
+                              args.alpha, gamma, K, A_seq=A_seq, b_seq=b_seq)
             err_sgdm[seed, :, j] = last_iterate_errors(traj_m, x_star)
             ave_sgdm[seed, :, j] = averaged_errors(traj_m, x_star, n0, ave_len)
 
@@ -111,34 +116,37 @@ def main():
               f"mean adaptive gamma = {gamma_mean[:, j].mean():.4f}")
 
     # ------------------------------------------------------------------ #
-    # One panel per method; each rho contributes a dashed last-iterate
-    # curve and a solid averaged curve (paper's Figure 6).
+    # One panel per method; each rho contributes a dotted last-iterate curve
+    # and a solid averaged curve (paper's Figure 6).  Panel (a) runs
+    # blue-orange-green, panel (b) orange-green-red.
     # ------------------------------------------------------------------ #
-    def _panel(fname, err, ave, last_label, ave_label):
+    def _panel(fname, err, ave, last_label, ave_label, colors):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
         for j, rho in enumerate(rho_list):
             cond = kappa_mean[j]
-            ax.plot(np.arange(1, K + 1), err[:, :, j].mean(axis=0) ** 2,
+            ax.plot(np.arange(K), err[:, :, j].mean(axis=0) ** 2,
                     label=rf"{last_label}-$L/\mu={cond:.1f}$",
-                    marker=MARKERS[j], markevery=100,
-                    linestyle="--", color=COLORS[j])
+                    marker="o", markevery=250,
+                    linestyle=":", color=colors[j])
             ax.plot(np.arange(n0 + 1, K + 1), ave[:, :, j].mean(axis=0) ** 2,
                     label=rf"{ave_label}-$L/\mu={cond:.1f}$",
-                    marker=MARKERS[j], markevery=100,
-                    linestyle="-", color=COLORS[j], zorder=5)
+                    marker="o", markevery=250,
+                    linestyle="-", color=colors[j], zorder=5)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-10, 1e-2])
+        ax.set_ylim([1e-9, 1e-1])
         ax.legend(fontsize=6.5)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    _panel("fig_lmu_sgd.png", err_sgd, ave_sgd, "SGD", "Ave-SGD")
-    _panel("fig_lmu_sgdm.png", err_sgdm, ave_sgdm, "SGDM-adap", "Ave-SGDM-adap")
+    _panel("fig_lmu_sgd.png", err_sgd, ave_sgd, "SGD", "Ave-SGD",
+           ["#1f77b4", "#ff7f0e", "#2ca02c"])
+    _panel("fig_lmu_sgdm.png", err_sgdm, ave_sgdm, "SGDM-adap", "Ave-SGDM-adap",
+           ["#ff7f0e", "#2ca02c", "#d62728"])
 
     np.savez_compressed(
         os.path.join(args.out, "lmu_raw.npz"),

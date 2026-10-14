@@ -10,8 +10,12 @@ MNIST, N = 60,000 images of size 28x28 reshaped to 784-dim vectors.  The model
 is a single linear layer (multinomial logistic regression) trained with the
 cross-entropy loss.  Batch size B = 256, learning rate alpha = 1.0,
 momentum weights gamma in {0.1, 0.3, 0.5, 0.7, 0.9, 0.99}, seeds 1, 2, 3.
-The reported training loss at iteration t is a moving average of the past
-floor(N/B) mini-batch losses (as stated in the paper).
+
+Reporting convention: the curve drawn at iteration t is the **running mean of
+the per-iteration mini-batch losses over iterations 1..t**, averaged over the
+seeds.  (The electronic companion describes this as an average over the past
+floor(N/B) batches; the running mean is what the published curves use, and the
+two agree for t <= floor(N/B).)
 
 Panel layout:
     (a) "Small gamma": SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5
@@ -54,10 +58,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.gridspec as gridspec  # noqa: E402
 
-MARKERS = ["o", "v", "s", "p", "P", "*", "+", "x"]
-LINESTYLES = ["-.", "--", ":", "-"]
-COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-          '#8c564b', '#e377c2']
+# Styling of the published panels (Figure EC.4).
+SMALL = dict(colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'],
+             markers=['*', 'p', 'P', '*'], linestyles=['-', '-.', '--', '-'])
+LARGE = dict(colors=['#d62728', '#1f77b4', '#ff7f0e', '#2ca02c'],
+             markers=['P', 'p', 'P', '*'], linestyles=['-', ':', '--', '-'])
 
 MIRRORS = [
     "https://ossci-datasets.s3.amazonaws.com/mnist/",
@@ -109,15 +114,21 @@ def load_mnist(raw_dir, download=False):
     return X, y
 
 
+def cumulative_mean(arr):
+    """Running mean: out[t] = mean(arr[0], ..., arr[t])."""
+    arr = np.asarray(arr, dtype=float)
+    return np.cumsum(arr) / np.arange(1, len(arr) + 1)
+
+
 def moving_average(arr, k):
-    """Average of the past k mini-batch losses (the paper's reporting rule)."""
-    n = len(arr)
-    ma = np.zeros(n, dtype=float)
-    csum = np.concatenate(([0.0], np.cumsum(arr, dtype=float)))
-    for idx in range(n):
+    """Average of the past k mini-batch losses (right-aligned window)."""
+    arr = np.asarray(arr, dtype=float)
+    csum = np.concatenate(([0.0], np.cumsum(arr)))
+    out = np.empty(len(arr))
+    for idx in range(len(arr)):
         lo = max(0, idx - k + 1)
-        ma[idx] = (csum[idx + 1] - csum[lo]) / (idx + 1 - lo)
-    return ma
+        out[idx] = (csum[idx + 1] - csum[lo]) / (idx + 1 - lo)
+    return out
 
 
 def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device):
@@ -195,13 +206,12 @@ def main():
             runs.append(run_one(seed, gamma, args.lr, args.epochs,
                                 args.batch_size, X, y, device))
         L = min(len(r) for r in runs)
-        # The paper reports a moving average over the past floor(N/B)
-        # mini-batch losses; apply it to each run before averaging the seeds.
-        k = args.batch_size and (X.shape[0] // args.batch_size)
-        ma_runs = [moving_average(r[:L], k) for r in runs]
+        # Running mean of the loss over iterations 1..t (see the module
+        # docstring); applied per run before averaging over the seeds.
+        ma_runs = [cumulative_mean(r[:L]) for r in runs]
         curves[gamma] = np.mean(ma_runs, axis=0)
 
-    def plot(fname, betas, ylim, include_sgd):
+    def plot(fname, betas, ylim, include_sgd, style):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15, figure=fig)[0])
@@ -211,9 +221,10 @@ def main():
             if beta not in curves:
                 continue
             label = "SGD" if beta == 0.0 else f"SGDM-{beta}"
-            ax.plot(curves[beta], label=label, marker=MARKERS[j],
-                    markevery=max(1, len(curves[beta]) // 8),
-                    linestyle=LINESTYLES[j % 4], color=COLORS[j])
+            ax.plot(curves[beta], label=label, marker=style["markers"][j],
+                    markevery=max(1, len(curves[beta]) // 8), markersize=6,
+                    linestyle=style["linestyles"][j],
+                    color=style["colors"][j])
             j += 1
         ax.set_xlabel(r"$t$")
         ax.set_ylabel("Training Loss")
@@ -223,10 +234,9 @@ def main():
         plt.close(fig)
 
     # Figure EC.4(a): SGD, SGDM-0.1, 0.3, 0.5
-    plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 2.6), include_sgd=True)
+    plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 2.6), True, SMALL)
     # Figure EC.4(b): SGDM-0.5, 0.7, 0.9, 0.99  (no SGD in the paper's panel)
-    plot("fig_mnist_large.png", [0.5, 0.7, 0.9, 0.99], (0.2, 2.6),
-         include_sgd=False)
+    plot("fig_mnist_large.png", [0.5, 0.7, 0.9, 0.99], (0.2, 2.6), False, LARGE)
 
     np.savez_compressed(os.path.join(args.out, "mnist_losses.npz"),
                         **{f"gamma_{g}": curves[g] for g in curves})

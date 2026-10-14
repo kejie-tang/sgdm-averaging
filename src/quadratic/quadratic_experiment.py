@@ -39,8 +39,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    adaptive_gamma, averaged_errors, generate_quadratic_data,
-    last_iterate_errors, make_batch_schedule, run_sgd, run_sgdm,
+    adaptive_gamma, averaged_errors, batch_gradient_sequence,
+    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
+    run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -66,7 +67,6 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--batch_frac", type=float, default=0.2)
     ap.add_argument("--n0_list", type=int, nargs="+", default=[250, 500])
-    ap.add_argument("--ave_len", type=int, default=1000)
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "quadratic"))
@@ -77,10 +77,11 @@ def main():
     batch_size = int(round(args.batch_frac * n))
     n0_list = sorted(set(args.n0_list) | {FIG3_N0})
     for n0 in n0_list:
-        if n0 + args.ave_len > K:
-            raise ValueError(
-                f"ave_len={args.ave_len} plus n0={n0} exceeds K={K}; "
-                f"increase --K or reduce --ave_len.")
+        if n0 >= K:
+            raise ValueError(f"n0={n0} must be smaller than K={K}.")
+    # The averaged curves run to the end of the trajectory, exactly as in the
+    # published panels: xbar_{n0+t} for t = 1, ..., K - n0.
+    ave_len = {n0: K - n0 for n0 in n0_list}
 
     # beta_set: fixed small / large momentum weights + adaptive (last slot).
     # The paper's "large gamma" panels use gamma = 0.97, 0.98, 0.99.
@@ -91,15 +92,15 @@ def main():
     err_m_small = np.zeros((args.num_seed, K, len(beta_fixed_small) + 1))
     err_m_large = np.zeros((args.num_seed, K, len(beta_fixed_large) + 1))
     err_m_fig4 = np.zeros((args.num_seed, K))
-    ave_sgd = {n0: np.zeros((args.num_seed, args.ave_len))
+    ave_sgd = {n0: np.zeros((args.num_seed, ave_len[n0]))
                for n0 in n0_list}
-    ave_m_small = {n0: np.zeros((args.num_seed, args.ave_len,
+    ave_m_small = {n0: np.zeros((args.num_seed, ave_len[n0],
                                  len(beta_fixed_small) + 1))
                    for n0 in n0_list}
-    ave_m_large = {n0: np.zeros((args.num_seed, args.ave_len,
+    ave_m_large = {n0: np.zeros((args.num_seed, ave_len[n0],
                                  len(beta_fixed_large) + 1))
                    for n0 in n0_list}
-    ave_m_fig4 = {n0: np.zeros((args.num_seed, args.ave_len))
+    ave_m_fig4 = {n0: np.zeros((args.num_seed, ave_len[n0]))
                   for n0 in n0_list}
     gamma_mean = np.zeros(args.num_seed)
 
@@ -113,38 +114,62 @@ def main():
         gamma_mean[seed] = gamma
 
         schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        # Every (gamma, alpha) pair replays the same mini-batches, so the batch
+        # gradients are formed once per replication instead of once per sweep
+        # entry.  The iterates are unchanged.
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
 
         traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                       args.alpha, K)
+                       args.alpha, K, A_seq=A_seq, b_seq=b_seq)
         err_sgd[seed] = last_iterate_errors(traj, x_star)
         for n0 in n0_list:
-            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, args.ave_len)
+            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, ave_len[n0])
 
         for betas, err_store, ave_store in (
                 (beta_fixed_small, err_m_small, ave_m_small),
                 (beta_fixed_large, err_m_large, ave_m_large)):
             for j, beta in enumerate(betas + [gamma]):
                 traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size,
-                                  schedule, args.alpha, beta, K)
+                                  schedule, args.alpha, beta, K,
+                                  A_seq=A_seq, b_seq=b_seq)
                 err_store[seed, :, j] = last_iterate_errors(traj_m, x_star)
                 for n0 in n0_list:
                     ave_store[n0][seed, :, j] = averaged_errors(
-                        traj_m, x_star, n0, args.ave_len)
+                        traj_m, x_star, n0, ave_len[n0])
 
         # SGDM with the fixed weight 0.96 used by Figure 4
         traj_96 = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                           args.alpha, GAMMA_FIG4, K)
+                           args.alpha, GAMMA_FIG4, K, A_seq=A_seq, b_seq=b_seq)
         err_m_fig4[seed] = last_iterate_errors(traj_96, x_star)
         for n0 in n0_list:
             ave_m_fig4[n0][seed] = averaged_errors(traj_96, x_star, n0,
-                                                   args.ave_len)
+                                                   ave_len[n0])
 
     print(f"[quadratic] mean adaptive gamma = {gamma_mean.mean():.4f}")
 
     # ------------------------------------------------------------------ #
+    # Colours / markers / line styles are the ones used in the published
+    # panels (read off Figures 2-4), so that a regenerated figure is
+    # recognisable next to the paper's.
+    # ------------------------------------------------------------------ #
+    STYLE = {
+        "SGD":           dict(color="#9467bd", marker="o", linestyle=":"),
+        "SGDM-adap":     dict(color="#d62728", marker="P", linestyle="-"),
+        "SGDM-0.5":      dict(color="#1f77b4", marker="v", linestyle="--"),
+        "SGDM-0.7":      dict(color="#ff7f0e", marker="s", linestyle="--"),
+        "SGDM-0.9":      dict(color="#2ca02c", marker="D", linestyle=":"),
+        "SGDM-0.96":     dict(color="#ff7f0e", marker="v", linestyle="--"),
+        "SGDM-0.97":     dict(color="#1f77b4", marker="v", linestyle="--"),
+        "SGDM-0.98":     dict(color="#ff7f0e", marker="s", linestyle="--"),
+        "SGDM-0.99":     dict(color="#2ca02c", marker="D", linestyle=":"),
+        "Ave-SGD":       dict(color="#2ca02c", marker="o", linestyle="-"),
+        "Ave-SGDM-0.96": dict(color="#d62728", marker="v", linestyle="-"),
+    }
+
+    # ------------------------------------------------------------------ #
     # Figure 2: last-iterate ||x_t - x^*||.
     #
-    # Legend order / colours follow the published panels:
+    # Legend order follows the published panels:
     #   (a) small gamma : SGD, SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-adap
     #   (b) large gamma : SGDM-adap, SGDM-0.97, SGDM-0.98, SGDM-0.99
     # ------------------------------------------------------------------ #
@@ -158,24 +183,21 @@ def main():
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        for j, (key, is_adap) in enumerate(_legend_order(betas)):
+        for key, is_adap in _legend_order(betas):
             if key == "sgd":
-                ax.plot(err_sgd.mean(axis=0) ** 2, label="SGD",
-                        marker=MARKERS[0], markevery=100,
-                        linestyle=LINESTYLES[3], color=COLORS[4], zorder=5)
+                y, lab = err_sgd.mean(axis=0) ** 2, "SGD"
             elif is_adap:
-                ax.plot(err_m[:, :, -1].mean(axis=0) ** 2, label="SGDM-adap",
-                        marker=MARKERS[-1], markevery=100, linestyle="--",
-                        color=COLORS[0], zorder=6)
+                y = err_m[:, :, -1].mean(axis=0) ** 2
+                lab = "SGDM-adap"
             else:
-                ax.plot(err_m[:, :, betas.index(key)].mean(axis=0) ** 2,
-                        label=f"SGDM-{key}", marker=MARKERS[j],
-                        markevery=100, linestyle=LINESTYLES[j % 3],
-                        color=COLORS[j])
+                y = err_m[:, :, betas.index(key)].mean(axis=0) ** 2
+                lab = f"SGDM-{key}"
+            ax.plot(np.arange(K), y, label=lab, markevery=200, **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||x_t-x^*||^2$")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-3])
+        ax.set_xlim([0, 800])
+        ax.set_ylim([1e-9, 1e-1])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
@@ -185,29 +207,28 @@ def main():
 
     # ------------------------------------------------------------------ #
     # Figure 3: averaged SGD / SGDM with n0 = 500 (one pair of panels).
+    # Here the horizontal axis is the averaging count t, as in the paper.
     # ------------------------------------------------------------------ #
     def plot_averaged(n0, betas, ave_m, fname):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        for j, (key, is_adap) in enumerate(_legend_order(betas)):
+        for key, is_adap in _legend_order(betas):
             if key == "sgd":
-                ax.plot(ave_sgd[n0].mean(axis=0) ** 2, label="SGD",
-                        marker=MARKERS[0], markevery=100,
-                        linestyle=LINESTYLES[3], color=COLORS[4], zorder=5)
+                y, lab = ave_sgd[n0].mean(axis=0) ** 2, "SGD"
             elif is_adap:
-                ax.plot(ave_m[n0][:, :, -1].mean(axis=0) ** 2,
-                        label="SGDM-adap", marker=MARKERS[-1], markevery=100,
-                        linestyle="--", color=COLORS[0], zorder=6)
+                y = ave_m[n0][:, :, -1].mean(axis=0) ** 2
+                lab = "SGDM-adap"
             else:
-                ax.plot(ave_m[n0][:, :, betas.index(key)].mean(axis=0) ** 2,
-                        label=f"SGDM-{key}", marker=MARKERS[j], markevery=100,
-                        linestyle=LINESTYLES[j % 3], color=COLORS[j])
+                y = ave_m[n0][:, :, betas.index(key)].mean(axis=0) ** 2
+                lab = f"SGDM-{key}"
+            ax.plot(np.arange(1, ave_len[n0] + 1), y, label=lab, markevery=250,
+                    **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||\bar{x}_{n_0+t}-x^*||^2$")
         ax.set_yscale("log")
-        ax.set_ylim([1e-10, 1e-3])
+        ax.set_ylim([1e-10, 1e-7])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
@@ -219,24 +240,23 @@ def main():
 
     # ------------------------------------------------------------------ #
     # Figure 4: SGD, SGDM-0.96 and their averaged versions, one panel per n0.
+    # The averaged curves are drawn on the absolute iteration axis, as in the
+    # paper.
     # ------------------------------------------------------------------ #
     def plot_compare(n0, fname):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(err_sgd.mean(axis=0) ** 2, label="SGD", marker=MARKERS[0],
-                markevery=100, linestyle=":", color=COLORS[0], zorder=5)
-        ax.plot(err_m_fig4.mean(axis=0) ** 2, label="SGDM-0.96",
-                marker=MARKERS[1], markevery=100, linestyle="--",
-                color=COLORS[1])
-        xa = np.arange(n0, n0 + args.ave_len)
+        ax.plot(np.arange(K), err_sgd.mean(axis=0) ** 2, label="SGD",
+                markevery=250, **STYLE["SGD"])
+        ax.plot(np.arange(K), err_m_fig4.mean(axis=0) ** 2, label="SGDM-0.96",
+                markevery=250, **STYLE["SGDM-0.96"])
+        xa = np.arange(n0 + 1, K + 1)
         ax.plot(xa, ave_sgd[n0].mean(axis=0) ** 2, label="Ave-SGD",
-                marker=MARKERS[0], markevery=100, linestyle="-",
-                color=COLORS[2], zorder=5)
+                markevery=250, **STYLE["Ave-SGD"])
         ax.plot(xa, ave_m_fig4[n0].mean(axis=0) ** 2, label="Ave-SGDM-0.96",
-                marker=MARKERS[1], markevery=100, linestyle="-",
-                color=COLORS[3])
+                markevery=250, **STYLE["Ave-SGDM-0.96"])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")

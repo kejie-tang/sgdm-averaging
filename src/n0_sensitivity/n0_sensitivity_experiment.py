@@ -34,8 +34,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    averaged_errors, generate_quadratic_data, last_iterate_errors,
-    make_batch_schedule, run_sgd, run_sgdm,
+    averaged_errors, batch_gradient_sequence, generate_quadratic_data,
+    last_iterate_errors, make_batch_schedule, run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -86,47 +86,55 @@ def main():
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
         schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        # SGD and SGDM replay the same batches; form the batch gradients once.
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
 
         traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                       args.alpha, K)
+                       args.alpha, K, A_seq=A_seq, b_seq=b_seq)
         err_sgd[seed] = last_iterate_errors(traj, x_star)
         for n0 in n0_list:
             ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, K - n0)
 
         traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                          args.alpha, args.gamma, K)
+                          args.alpha, args.gamma, K, A_seq=A_seq, b_seq=b_seq)
         err_sgdm[seed] = last_iterate_errors(traj_m, x_star)
         for n0 in n0_list:
             ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, K - n0)
 
     # ------------------------------------------------------------------ #
     # Plotting.  Panel (a) has no momentum, panel (b) is SGDM-0.96; both
-    # show the last iterate plus one averaged curve per n0.
+    # show the last iterate plus one averaged curve per n0.  Colours and
+    # markers follow the published Figure 5: the reference curve is blue
+    # (SGD) / orange (SGDM-0.96) and the four averaged curves run
+    # green-red-purple-brown in (a) and red-purple-brown-pink in (b).
     # ------------------------------------------------------------------ #
-    def _panel(fname, err, ave, label_last):
+    def _panel(fname, err, ave, label_last, ref_style, ave_colors):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(np.arange(1, K + 1), err.mean(axis=0) ** 2,
-                label=label_last, marker=MARKERS[0], markevery=100,
-                linestyle=":", color=COLORS[0], zorder=5)
+        ax.plot(np.arange(K), err.mean(axis=0) ** 2, label=label_last,
+                markevery=250, **ref_style)
         for j, n0 in enumerate(n0_list):
             y = ave[n0].mean(axis=0) ** 2
             ax.plot(np.arange(n0 + 1, K + 1), y,
                     label=rf"Ave-{label_last}-$n_0$={n0}",
-                    marker=MARKERS[j + 1], markevery=100,
-                    linestyle=LINESTYLES[j % 3], color=COLORS[j + 1])
+                    marker=ref_style["marker"], markevery=250,
+                    linestyle="-", color=ave_colors[j])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-10, 1e-2])
+        ax.set_ylim([1e-9, 1e-1])
         ax.legend(fontsize=7)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    _panel("fig_n0_sgd.png", err_sgd, ave_sgd, "SGD")
-    _panel("fig_n0_sgdm.png", err_sgdm, ave_sgdm, f"SGDM-{args.gamma}")
+    _panel("fig_n0_sgd.png", err_sgd, ave_sgd, "SGD",
+           dict(color="#1f77b4", marker="o", linestyle=":"),
+           ["#2ca02c", "#d62728", "#9467bd", "#8c564b"])
+    _panel("fig_n0_sgdm.png", err_sgdm, ave_sgdm, f"SGDM-{args.gamma}",
+           dict(color="#ff7f0e", marker="v", linestyle="--"),
+           ["#d62728", "#9467bd", "#8c564b", "#e377c2"])
 
     arrays = dict(err_sgd=err_sgd, err_sgdm=err_sgdm,
                   n0_list=np.array(n0_list), gamma=args.gamma)

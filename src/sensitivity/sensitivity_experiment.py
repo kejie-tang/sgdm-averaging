@@ -58,6 +58,11 @@ FINAL_EXPS = tuple(range(-11, 3))          # Figure 10 x-axis: 2^-11 ... 2^2
 # replaced by 1.
 DIVERGED_CAP = 1.0
 
+# (marker, linestyle) per curve, in the order of SGD_CURVE_EXPS /
+# SGDM_CURVE_EXPS; read off the published Figure 9 and Figure 11.
+FIG9_STYLE = [("v", "-"), ("s", "--"), ("o", "-."), ("+", "-."), ("p", "-.")]
+FIG11_STYLE = [("o", "-."), ("v", "-"), ("s", "--"), ("D", "-."), ("P", "-.")]
+
 
 def _cap(v):
     """Map a diverged (inf/nan or > 1) error onto the 10^0 plateau."""
@@ -192,22 +197,24 @@ def main():
 
     ax = fig.add_subplot(spec[0])
     for j, e in enumerate(SGD_CURVE_EXPS):
+        mk, ls = FIG9_STYLE[j]
         ax.plot(np.arange(T + 1), last_sgd[:, :, j].mean(axis=0),
-                label=rf"SGD-$2^{{{e}}}$", marker=MARKERS[j],
-                markevery=max(1, (T + 1) // 5),
-                linestyle=LINESTYLES[j % 3], color=COLORS[j])
+                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=100,
+                linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$\|x_t-x^*\|^2$")
     ax.set_yscale("log")
+    ax.set_ylim([1e-7, 1e-1])
     ax.legend(fontsize=9)
     ax = fig.add_subplot(spec[1])
     for j, e in enumerate(SGDM_CURVE_EXPS):
+        mk, ls = FIG9_STYLE[j]
         ax.plot(np.arange(T + 1), last_sgdm[:, :, j].mean(axis=0),
-                label=rf"SGDM-$2^{{{e}}}$", marker=MARKERS[j],
-                markevery=max(1, (T + 1) // 5),
-                linestyle=LINESTYLES[j % 3], color=COLORS[j])
+                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=100,
+                linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_yscale("log")
+    ax.set_ylim([1e-7, 1e-1])
     ax.legend(fontsize=9)
     fig.savefig(os.path.join(args.out, "fig_dif_alpha.png"),
                 bbox_inches="tight")
@@ -218,15 +225,16 @@ def main():
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
     ax.plot(FINAL_EXPS, err_sgd.mean(axis=0), label="SGD",
-            marker=MARKERS[0], linestyle=LINESTYLES[0], color=COLORS[0])
+            marker="o", linestyle="--", color=COLORS[0])
     for bi_, beta in enumerate(args.betas):
         ax.plot(FINAL_EXPS, err_sgdm[:, bi_, :].mean(axis=0),
-                label=rf"SGDM-{beta}", marker=MARKERS[bi_ + 1],
-                linestyle=LINESTYLES[bi_ + 1], color=COLORS[bi_ + 1])
+                label=rf"SGDM-{beta}", marker=("v", "s")[bi_],
+                linestyle=("-", "--")[bi_], color=COLORS[bi_ + 1])
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$\|x_T-x^*\|^2$")
     ax.set_yscale("log")
-    ax.legend()
+    ax.set_ylim([1e-6, 2e0])
+    ax.legend(loc="upper left")
     fig.savefig(os.path.join(args.out, "fig_sen_alpha.png"),
                 bbox_inches="tight")
     plt.close(fig)
@@ -238,22 +246,24 @@ def main():
                              bottom=0.15, wspace=0.25, figure=fig)
     ax = fig.add_subplot(spec[0])
     for j, e in enumerate(SGD_CURVE_EXPS):
+        mk, ls = FIG11_STYLE[j]
         ax.plot(t_ave, ave_sgd[:, :, j].mean(axis=0),
-                label=rf"SGD-$2^{{{e}}}$", marker=MARKERS[j],
-                markevery=max(1, len(t_ave) // 4),
-                linestyle=LINESTYLES[j % 3], color=COLORS[j])
+                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=100,
+                linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$\|\bar{x}_{n_0+t}-x^*\|^2$")
     ax.set_yscale("log")
+    ax.set_ylim([5e-8, 1e-4])
     ax.legend(fontsize=9)
     ax = fig.add_subplot(spec[1])
     for j, e in enumerate(SGDM_CURVE_EXPS):
+        mk, ls = FIG11_STYLE[j]
         ax.plot(t_ave, ave_sgdm[:, :, j].mean(axis=0),
-                label=rf"SGDM-$2^{{{e}}}$", marker=MARKERS[j],
-                markevery=max(1, len(t_ave) // 4),
-                linestyle=LINESTYLES[j % 3], color=COLORS[j])
+                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=100,
+                linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_yscale("log")
+    ax.set_ylim([5e-8, 1e-4])
     ax.legend(fontsize=9)
     fig.savefig(os.path.join(args.out, "fig_ave_alpha.png"),
                 bbox_inches="tight")

@@ -36,8 +36,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    averaged_errors, decaying_schedule, generate_quadratic_data,
-    last_iterate_errors, make_batch_schedule, run_sgd, run_sgdm,
+    averaged_errors, batch_gradient_sequence, decaying_schedule,
+    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
+    run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -90,19 +91,22 @@ def main():
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
         schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        # The batches do not depend on n0, so the batch gradients are formed
+        # once per replication and replayed by every panel / method.
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
 
         # the schedule depends on n0, so each panel needs its own run
         for n0 in n0_list:
             alphas = decaying_schedule(n0, K, args.alpha0)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                           alphas, K)
+                           alphas, K, A_seq=A_seq, b_seq=b_seq)
             ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, K - n0)
             if n0 == n0_list[0]:
                 err_sgd[seed] = last_iterate_errors(traj, x_star)
 
             traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                              alphas, args.gamma, K)
+                              alphas, args.gamma, K, A_seq=A_seq, b_seq=b_seq)
             ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, K - n0)
             if n0 == n0_list[0]:
                 err_sgdm[seed] = last_iterate_errors(traj_m, x_star)
@@ -119,14 +123,14 @@ def main():
         ax = fig.add_subplot(spec[0])
         for label, ci, mi, ls in CURVES:
             if label == "SGD":
-                y, x = err_sgd.mean(axis=0) ** 2, np.arange(1, K + 1)
+                y, x = err_sgd.mean(axis=0) ** 2, np.arange(K)
             elif label == "SGDM-0.96":
-                y, x = err_sgdm.mean(axis=0) ** 2, np.arange(1, K + 1)
+                y, x = err_sgdm.mean(axis=0) ** 2, np.arange(K)
             elif label == "Ave-SGD":
                 y, x = ave_sgd[n0].mean(axis=0) ** 2, np.arange(n0 + 1, K + 1)
             else:
                 y, x = ave_sgdm[n0].mean(axis=0) ** 2, np.arange(n0 + 1, K + 1)
-            ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=150,
+            ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=250,
                     linestyle=ls, color=COLORS[ci])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
