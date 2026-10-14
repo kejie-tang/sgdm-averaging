@@ -1,5 +1,5 @@
 """
-Figures 5 and 9: asymptotic normality of the averaged SGD / SGDM estimator.
+Figures 8 and 12: asymptotic normality of the averaged SGD / SGDM estimator.
 
 Setting
 -------
@@ -9,9 +9,9 @@ The statistic (Eq. (def:z))
         * sum_{t=n0+1}^n omega^T (x_t - x^*) / sqrt(n - n0)
 is asymptotically N(0, 1) by Corollary 3.
 
-Figure 5 : frequency of Y for averaged SGD and averaged SGDM, gamma = 0.9,
+Figure 8 : frequency of Y for averaged SGD and averaged SGDM, gamma = 0.9,
            n0 = 1000, n = 2000.
-Figure 9 : empirical P(|Z| < 1.96) as a function of the learning rate for SGD
+Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
            and SGDM (gamma = 0.8, 0.9).
 
 Outputs (results/clt/):
@@ -130,7 +130,7 @@ def main():
     hist_figure(z_sgdm, f"SGDM ($\\gamma$={args.gamma_hist})",
                 "fig_clt_sgdm.png", args.out)
 
-    # --- coverage vs. learning rate (Figure 9) ---
+    # --- coverage vs. learning rate (Figure 12) ---
     rng2 = np.random.RandomState(1)
     V2 = rng2.rand(n, p, p)
     Ai2 = np.empty((n, p, p))

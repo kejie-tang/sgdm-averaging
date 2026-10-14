@@ -4,14 +4,20 @@ __pycache__/
 .DS_Store
 
 # ---------------------------------------------------------------------------
-# MNIST is a public dataset and is NOT distributed with this repository.
-# The scripts download it on demand (src/mnist/mnist_experiment.py --download)
-# or you place the files under data/MNIST/raw/ yourself.  Everything the
-# dataset touches is ignored so the repository never carries a 100+ MB copy.
+# MNIST and CIFAR-10 are public datasets and are NOT distributed with this
+# repository.  The scripts download them on demand
+# (src/mnist/mnist_experiment.py --download, src/cifar/cifar_experiment.py
+# --download) or you place the files under data/MNIST/raw/ and
+# data/CIFAR10/cifar-10-batches-py/ yourself.  Everything the datasets touch
+# is ignored so the repository never carries a 100+ MB copy.
 # ---------------------------------------------------------------------------
 data/MNIST/
 data/*/MNIST/
+data/CIFAR10/
+data/*/CIFAR10/
 
-# results/ is tracked on purpose (it holds the paper's figures and raw arrays),
-# but ignore ad-hoc scratch output directories.
-results/_*/
+# results/<exp>/ holds the figure each script produces (tracked, so that the
+# paper's figures can be inspected without re-running anything) plus the raw
+# *.npz arrays (regenerable and sometimes large -> ignored).
+results/_*
+results/**/*.npz

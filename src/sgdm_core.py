@@ -40,7 +40,7 @@ import numpy as np
 # --------------------------------------------------------------------------- #
 # Data generation
 # --------------------------------------------------------------------------- #
-def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, normalize=False):
+def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None):
     """Generate a quadratic-loss problem as in Section 6.1 of the paper.
 
     Parameters
@@ -56,10 +56,11 @@ def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, normalize=False):
     shift : float
         Ridge added to each A_i (``+shift * I``).  With rho=1, shift=10 the
         average condition number is L/mu = 35/10, matching Section 6.1.
-    normalize : bool
-        If True divide ``(rho * V_i^T V_i + shift * I)`` by ``1 + shift`` so
-        that the eigenvalues lie in [0, 1]; used by the sensitivity experiment
-        (Section 6.2) so that learning rates can be taken over a wider range.
+    norm_const : float or None
+        If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
+        before forming A, b and x^*.  The sensitivity experiment (Section 6.2)
+        uses ``rho=1, shift=1.03, norm_const=1.04``, i.e. the authors'
+        ``(V_i^T V_i + 1.03 I)/1.04``.
 
     Returns
     -------
@@ -78,8 +79,8 @@ def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, normalize=False):
     for i in range(n):
         Vi = V[i]
         Ai[i] = rho * (Vi @ Vi.T) + shift * np.eye(p)
-    if normalize:
-        Ai = Ai / (1.0 + shift)
+    if norm_const is not None:
+        Ai = Ai / float(norm_const)
     bi = rng.rand(n, p, 1)
 
     A = Ai.mean(axis=0)
@@ -134,8 +135,22 @@ def make_batch_schedule(n, batch_size, K, seed, replace=False):
 # --------------------------------------------------------------------------- #
 # Iterates
 # --------------------------------------------------------------------------- #
+def _step_size(alpha, k):
+    """Return the step size at iteration ``k``.
+
+    ``alpha`` may be a scalar (constant learning rate) or a sequence of length
+    at least ``k + 1`` (a decaying schedule, as in Figure 7).
+    """
+    if np.isscalar(alpha):
+        return alpha
+    return alpha[k]
+
+
 def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K):
-    """Last-iterate SGD. Returns the (K, p, 1) trajectory."""
+    """Last-iterate SGD. Returns the (K, p, 1) trajectory.
+
+    ``alpha`` is either a scalar or a length-K per-iteration schedule.
+    """
     p = initial.shape[0]
     x = initial.copy()
     traj = np.empty((K, p, 1))
@@ -144,12 +159,15 @@ def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K):
         A_batch = Ai[i].mean(axis=0)
         b_batch = bi[i].mean(axis=0)
         traj[k] = x
-        x = x - alpha * (A_batch @ x + b_batch)
+        x = x - _step_size(alpha, k) * (A_batch @ x + b_batch)
     return traj
 
 
 def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K):
-    """Last-iterate SGDM. Returns the (K, p, 1) trajectory."""
+    """Last-iterate SGDM. Returns the (K, p, 1) trajectory.
+
+    ``alpha`` is either a scalar or a length-K per-iteration schedule.
+    """
     p = initial.shape[0]
     x = initial.copy()
     m = np.zeros((p, 1))
@@ -160,8 +178,20 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K):
         b_batch = bi[i].mean(axis=0)
         traj[k] = x
         m = gamma * m + (1.0 - gamma) * (A_batch @ x + b_batch)
-        x = x - alpha * m
+        x = x - _step_size(alpha, k) * m
     return traj
+
+
+def decaying_schedule(n0, K, alpha0):
+    """Decaying learning rate of Figure 7.
+
+        alpha_t = alpha0 * sqrt(n0 / max(n0, t)),   t = 1, ..., K
+
+    i.e. alpha0 for t <= n0 and alpha0 * sqrt(n0/t) afterwards, which is the
+    paper's alpha_t = alpha0 * (max{n0, t})^{-1/2} up to the constant sqrt(n0).
+    """
+    t = np.arange(1, K + 1, dtype=float)
+    return alpha0 * np.sqrt(n0 / np.maximum(n0, t))
 
 
 def averaged_errors(traj, x_star, n0, T):

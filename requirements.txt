@@ -1,4 +1,6 @@
 numpy>=1.21
 matplotlib>=3.4
-# Only required by src/mnist/mnist_experiment.py:
+# Only required by the neural-network scripts
+# (src/mnist/mnist_experiment.py, src/mnist_tanh/mnist_tanh_experiment.py,
+#  src/cifar/cifar_experiment.py):
 torch>=1.10

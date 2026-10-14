@@ -1,5 +1,7 @@
 """
-Figures 10-12: SGD / SGDM / averaged SGD / averaged SGDM on the logistic loss.
+Figures EC.1-EC.3: SGD / SGDM / averaged SGD / averaged SGDM on the logistic loss.
+
+This experiment is reported in the paper's electronic companion (Section EC.7.1).
 
 Setting
 -------
@@ -16,9 +18,9 @@ The full-batch gradient descent used to locate x^* is the same procedure as in
 the paper (beta = 0, 10*K iterations, alpha = 0.5).
 
 Outputs (results/logistic/), one file per paper panel:
-    fig_logistic_small.png / fig_logistic_large.png   -> Figure 10(a),(b)
-    fig_logistic_ave_small.png / _large.png           -> Figure 11(a),(b),  n0=10
-    fig_logistic_ave2_small.png / _large.png          -> Figure 12(a),(b),  n0=40
+    fig_logistic_small.png / fig_logistic_large.png   -> Figure EC.1(a),(b)
+    fig_logistic_ave_small.png / _large.png           -> Figure EC.2(a),(b),  n0=10
+    fig_logistic_ave2_small.png / _large.png          -> Figure EC.3(a),(b),  n0=40
     logistic_raw.npz
 
 Run:  python src/logistic/logistic_experiment.py --num_seed 200
@@ -76,7 +78,7 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--batch_frac", type=float, default=0.2)
-    # the paper uses n0 = 10 for Figure 11 and n0 = 40 for Figure 12
+    # the paper uses n0 = 10 for Figure EC.2 and n0 = 40 for Figure EC.3
     ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40])
     ap.add_argument("--ave_len", type=int, default=100)
     ap.add_argument("--out", type=str,
@@ -96,7 +98,7 @@ def main():
     beta_fixed_small = [0.3, 0.5, 0.7]
     beta_fixed_large = [0.8, 0.9]
 
-    # last-iterate error (Figure 7) and averaged error per n0 (Figures 8-9)
+    # last-iterate error (Figure EC.1) and averaged error per n0 (Figures EC.2-EC.3)
     err_last = np.zeros((args.num_seed, K - 1, n_beta))
     err_ave = {n0: np.zeros((args.num_seed, ave_len - 1, n_beta))
                for n0 in args.n0_list}
@@ -169,18 +171,18 @@ def main():
     # labels indices: 0=SGD,1=0.3,2=0.5,3=0.7,4=adap,5=0.8,6=0.9
     # Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
     # Panel (b) "large gamma": SGD, SGDM-0.8/0.9, SGDM-adap  -- the paper keeps
-    # SGD in this panel as the reference curve (see Figure 10(b),
-    # Figure 11(b) and Figure 12(b)).
+    # SGD in this panel as the reference curve (see Figure EC.1(b),
+    # Figure EC.2(b) and Figure EC.3(b)).
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [0, 4, 5, 6]
 
-    # ---- Figure 10: last iterate, small/large gamma ----
+    # ---- Figure EC.1: last iterate, small/large gamma ----
     plot_single("fig_logistic_small.png", err_last, idx_small,
                 r"$||x_t-x^*||^2$")
     plot_single("fig_logistic_large.png", err_last, idx_large,
                 r"$||x_t-x^*||^2$")
 
-    # ---- Figures 8-9: averaged, per n0, small/large gamma ----
+    # ---- Figures EC.2-EC.3: averaged, per n0, small/large gamma ----
     n0_first, n0_second = args.n0_list[0], args.n0_list[-1]
     plot_single("fig_logistic_ave_small.png", err_ave[n0_first], idx_small,
                 r"$||\bar{x}_{n_0+t}-x^*||^2$")
