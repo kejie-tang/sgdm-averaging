@@ -54,7 +54,10 @@ See `data/README.md`.
 Run from the repository root. `bash scripts/run_all.sh` does everything
 (`FAST=1` for a quick reduced-fidelity pass).
 
-**Figure 1** — visualization of the spectral radius λ of the SGDM recursion.
+**Figure 1** — colour maps of the spectral radius λ of the SGDM recursion.
+Panel (a) is the spectral radius itself; panel (b) highlights, in yellow, the
+region where SGDM is faster than optimally specified SGD, i.e. where
+λ_SGDM(α, γ) < (L − μ)/(L + μ).
 ```bash
 python src/theory/lambda_heatmap.py --kappa 5
 ```
@@ -76,7 +79,11 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 ```
 
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
-numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250.
+numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250. The code computes the
+condition numbers from the realised population Hessian, using the paper's own
+recipe Aᵢ = ρ VᵢᵀVᵢ + 10 I_d, and gets 3.3 / 9.9 / 14.7: the ρ = 5 and ρ = 10
+values match the caption exactly, the ρ = 1 value does not (the caption quotes
+3.5, which is what the figure's legend is drawn with).
 ```bash
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
@@ -148,16 +155,23 @@ averaged over the three seeds — the authors' plotting convention. For Figures
 14-15 the sequence being averaged is the loss of the Polyak-averaged
 parameters from n₀ onwards (before n₀ it is the ordinary mini-batch loss).
 
+The paper's EC.7.2 text describes this curve as "an average of the past
+⌊N/B⌋ batches", but the authors' own plotting helper does not window the
+series: `moving_ave2` returns `ma[t] = mean(loss[0:t])` (its window argument
+is unused, and the call sites all use that helper rather than the true
+right-aligned `moving_ave`). `src/mnist_tanh/`, `src/mnist/` and `src/cifar/`
+follow the code, which is what the published panels show.
+
 ## 5. Figure to code
 
 | Figure | Script | Key parameters |
 |---|---|---|
-| 1 | `src/theory/lambda_heatmap.py` | kappa = 5 |
+| 1 | `src/theory/lambda_heatmap.py` | κ = 5; (a) λ map, (b) SGDM-beats-SGD region |
 | 2 | `src/quadratic/quadratic_experiment.py` | α = 0.001, γ = {0.5,0.7,0.9} (a) / {0.97,0.98,0.99} (b) |
 | 3 | `src/quadratic/quadratic_experiment.py` | averaged, n₀ = 500 |
 | 4 | `src/quadratic/quadratic_experiment.py` | γ = 0.96, n₀ = 250, 500 |
 | 5 | `src/n0_sensitivity/n0_sensitivity_experiment.py` | γ = 0.96, n₀ = {250,500,750,1000} |
-| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10}, adaptive γ, n₀ = 250 |
+| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.3, 9.9, 14.7}, adaptive γ, n₀ = 250 |
 | 7 | `src/decaying/decaying_experiment.py` | decayed α, γ = 0.96, n₀ = 250, 500 |
 | 8 | `src/clt/clt_experiment.py` | n₀ = 1000, n = 2000, γ = 0.9, 1000 trials |
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
@@ -217,8 +231,3 @@ Every figure in the paper's main text (Figures 1-16) and electronic companion
   784 → 500 (tanh) → 10. See the module docstring of
   `src/mnist_tanh/nn_models.py` for how it maps onto the paper's
   `f_i(X) = H(tanh(X^T a_1i) a_2i, b_i)`.
-
-A third, smaller, caveat: Figure 6 is labelled with the paper's nominal
-condition numbers 3.5 / 9.9 / 14.7. The code computes them from the realised
-population Hessian and prints 3.3 / 9.9 / 14.7 — the first panel differs only
-because the paper rounds L/μ ≈ 35/10.

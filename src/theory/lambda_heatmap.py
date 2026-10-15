@@ -1,8 +1,14 @@
 """
-Figure 1: contour/heatmap of the spectral radius of Gamma.
+Figure 1: color maps of the spectral radius of Gamma.
 
 Reproduces the theoretical figure in Section 3.1 of the paper (the
-"Linear convergence to a local neighborhood" discussion).
+"Linear convergence to a local neighborhood" discussion).  The figure has two
+panels: (a) the spectral radius itself, and (b) the same map with the region
+where SGDM beats optimally specified SGD highlighted, i.e. where
+
+    lambda_SGDM(alpha, gamma) < (L - mu) / (L + mu),
+
+the optimal spectral radius of plain gradient descent (SGD, gamma = 0).
 
 For a fixed condition number L/mu = kappa, the contraction factor lambda of
 SGDM on a quadratic loss is a closed-form function of (alpha, gamma):
@@ -80,14 +86,31 @@ def main():
 
     x, y, Z = spectral_radius_grid(args.kappa, args.n_grid)
 
-    fig = plt.figure(figsize=(5, 4), dpi=150)
-    ax = fig.add_subplot(gridspec.GridSpec(
-        1, 1, left=0.13, right=0.9, top=0.9, bottom=0.18, figure=fig)[0])
-    im = ax.imshow(Z, extent=[0, 2, 0, 1], aspect="auto", cmap="viridis_r",
-                   interpolation="bicubic", origin="lower")
-    fig.colorbar(im, ax=ax)
-    ax.set_xlabel(r"$\alpha\sqrt{\mu L}$")
-    ax.set_ylabel(r"$\gamma$")
+    # Optimal spectral radius of SGD (gamma = 0), i.e. (L - mu) / (L + mu).
+    # Panel (b) highlights where SGDM's spectral radius is below it.
+    sgd_optimal = (args.kappa - 1.0) / (args.kappa + 1.0)
+
+    fig = plt.figure(figsize=(9.5, 4), dpi=150)
+    spec = gridspec.GridSpec(1, 4, width_ratios=[1.0, 0.045, 1.0, 0.045],
+                             left=0.06, right=0.97, top=0.92, bottom=0.16,
+                             wspace=0.55, figure=fig)
+    for panel, (ax, cax) in enumerate(((fig.add_subplot(spec[0]),
+                                        fig.add_subplot(spec[1])),
+                                       (fig.add_subplot(spec[2]),
+                                        fig.add_subplot(spec[3])))):
+        im = ax.imshow(Z, extent=[0, 2, 0, 1], aspect="auto", cmap="viridis_r",
+                       interpolation="bicubic", origin="lower")
+        fig.colorbar(im, cax=cax)
+        ax.set_xlabel(r"$\alpha\sqrt{\mu L}$")
+        ax.set_ylabel(r"$\gamma$")
+        if panel == 1:
+            # Panel (b): overlay the region where SGDM improves on SGD.
+            highlight = np.where(np.isfinite(Z) & (Z < sgd_optimal),
+                                 1.0, np.nan)
+            ax.imshow(highlight, extent=[0, 2, 0, 1], aspect="auto",
+                      origin="lower", interpolation="nearest", vmin=0.0,
+                      vmax=1.0,
+                      cmap=matplotlib.colors.ListedColormap(["#FFFF00"]))
     fig.savefig(os.path.join(args.out, "fig_lambda.png"), bbox_inches="tight")
     plt.close(fig)
 
