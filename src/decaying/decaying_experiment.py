@@ -81,8 +81,8 @@ def main():
 
     err_sgd = np.zeros((args.num_seed, K))
     err_sgdm = np.zeros((args.num_seed, K))
-    ave_sgd = {n0: np.zeros((args.num_seed, K - n0)) for n0 in n0_list}
-    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0)) for n0 in n0_list}
+    ave_sgd = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
+    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
@@ -123,13 +123,15 @@ def main():
         ax = fig.add_subplot(spec[0])
         for label, ci, mi, ls in CURVES:
             if label == "SGD":
-                y, x = err_sgd.mean(axis=0) ** 2, np.arange(K)
+                y, x = (err_sgd ** 2).mean(axis=0), np.arange(K)
             elif label == "SGDM-0.96":
-                y, x = err_sgdm.mean(axis=0) ** 2, np.arange(K)
+                y, x = (err_sgdm ** 2).mean(axis=0), np.arange(K)
             elif label == "Ave-SGD":
-                y, x = ave_sgd[n0].mean(axis=0) ** 2, np.arange(n0 + 1, K + 1)
+                y = (ave_sgd[n0] ** 2).mean(axis=0)
+                x = np.arange(n0 + 1, n0 + 1 + y.size)
             else:
-                y, x = ave_sgdm[n0].mean(axis=0) ** 2, np.arange(n0 + 1, K + 1)
+                y = (ave_sgdm[n0] ** 2).mean(axis=0)
+                x = np.arange(n0 + 1, n0 + 1 + y.size)
             ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=250,
                     linestyle=ls, color=COLORS[ci])
         ax.set_xlabel(r"$t$")

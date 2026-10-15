@@ -15,13 +15,11 @@ if [ "${FAST:-0}" = "1" ]; then
   SEED=20
   SEED_CLT=100
   EPOCHS=1
-  CIFAR_EPOCHS=1
   echo ">>> FAST mode: reduced number of replications"
 else
   SEED=200
   SEED_CLT=1000
   EPOCHS=5
-  CIFAR_EPOCHS=50
 fi
 
 echo ">>> Figure 1: spectral radius"
@@ -58,8 +56,11 @@ else
   echo ">>> Figure EC.4: MNIST with logistic regression"
   python src/mnist/mnist_experiment.py --download --epochs "$EPOCHS"
 
+  # Figure 16 is drawn from the archived logs that produced the paper's panel
+  # (data/cifar_logs/), which reproduces it exactly.  To re-train the
+  # reconstruction from scratch instead, add "--mode train --download".
   echo ">>> Figure 16: CIFAR-10 with VGG-11"
-  python src/cifar/cifar_experiment.py --download --epochs "$CIFAR_EPOCHS"
+  python src/cifar/cifar_experiment.py
 fi
 
 echo ">>> all figures written to results/"

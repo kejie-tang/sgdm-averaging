@@ -3,9 +3,11 @@ Figure 6: performance under different condition numbers L/mu.
 
 Setting
 -------
-Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10},
-which gives average condition numbers L/mu = 3.5, 9.9 and 14.7.  Otherwise the
-setup of Section 6.1: N = 20,000, d = 10, batch size B = 0.2 N, learning rate
+Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10}.
+The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
+are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS`` and README.md,
+section 7).  Otherwise the setup of Section 6.1: N = 20,000, d = 10, batch
+size B = 0.2 N, learning rate
 alpha = 0.001, K = 1500 iterations, 200 replications.  The momentum weight is
 the *adaptive* weight gamma = ((1 - mu alpha)/(1 + mu alpha))^2 computed from
 each replication's mu; its averages over the 200 replications are about
@@ -51,6 +53,14 @@ LINESTYLES = ["-.", "--", ":", "-"]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
           '#8c564b', '#e377c2', '#7f7f7f']
 
+# The legend labels of the published Figure 6.  The authors' plotting cell
+# hardcodes them (``kappa_set = [3.5, 9.9, 14.7]``); they are not read off the
+# data.  The realised values, which the script prints, are 3.3 / 9.9 / 14.7 --
+# the rho = 5 and rho = 10 entries agree to one decimal, the rho = 1 entry does
+# not (see README.md, section 7).  The labels below are what the paper's
+# caption and legend say, so the released figure matches the published one.
+KAPPA_LABELS = [3.5, 9.9, 14.7]
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -74,7 +84,7 @@ def main():
         raise ValueError(f"n0={n0} must be smaller than K={K}.")
     batch_size = int(round(args.batch_frac * n))
     rho_list = list(args.rho_list)
-    ave_len = K - n0
+    ave_len = K - n0 - 1
 
     err_sgd = np.zeros((args.num_seed, K, len(rho_list)))
     err_sgdm = np.zeros((args.num_seed, K, len(rho_list)))
@@ -120,33 +130,39 @@ def main():
     # and a solid averaged curve (paper's Figure 6).  Panel (a) runs
     # blue-orange-green, panel (b) orange-green-red.
     # ------------------------------------------------------------------ #
-    def _panel(fname, err, ave, last_label, ave_label, colors):
+    def _panel(fname, err, ave, last_label, ave_label, colors, marker):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
+        # The published panels list the last-iterate curves first and the
+        # averaged ones after, so the two loops are separate.
         for j, rho in enumerate(rho_list):
-            cond = kappa_mean[j]
-            ax.plot(np.arange(K), err[:, :, j].mean(axis=0) ** 2,
+            cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
+            ax.plot(np.arange(K), (err[:, :, j] ** 2).mean(axis=0),
                     label=rf"{last_label}-$L/\mu={cond:.1f}$",
-                    marker="o", markevery=250,
+                    marker=marker, markevery=250,
                     linestyle=":", color=colors[j])
-            ax.plot(np.arange(n0 + 1, K + 1), ave[:, :, j].mean(axis=0) ** 2,
+        for j, rho in enumerate(rho_list):
+            cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
+            ya = (ave[:, :, j] ** 2).mean(axis=0)
+            ax.plot(np.arange(n0 + 1, n0 + 1 + ya.size), ya,
                     label=rf"{ave_label}-$L/\mu={cond:.1f}$",
-                    marker="o", markevery=250,
+                    marker=marker, markevery=250,
                     linestyle="-", color=colors[j], zorder=5)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-1])
+        ax.set_ylim([1e-9, 1e-2])
         ax.legend(fontsize=6.5)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
+    # Panel (a) uses circles, panel (b) triangles, as in the published figure.
     _panel("fig_lmu_sgd.png", err_sgd, ave_sgd, "SGD", "Ave-SGD",
-           ["#1f77b4", "#ff7f0e", "#2ca02c"])
+           ["#1f77b4", "#ff7f0e", "#2ca02c"], "o")
     _panel("fig_lmu_sgdm.png", err_sgdm, ave_sgdm, "SGDM-adap", "Ave-SGDM-adap",
-           ["#ff7f0e", "#2ca02c", "#d62728"])
+           ["#ff7f0e", "#2ca02c", "#d62728"], "v")
 
     np.savez_compressed(
         os.path.join(args.out, "lmu_raw.npz"),

@@ -76,8 +76,8 @@ def main():
     err_sgd = np.zeros((args.num_seed, K))
     err_sgdm = np.zeros((args.num_seed, K))
     # per n0 the averaged curve has length K - n0 (t = n0+1, ..., K)
-    ave_sgd = {n0: np.zeros((args.num_seed, K - n0)) for n0 in n0_list}
-    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0)) for n0 in n0_list}
+    ave_sgd = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
+    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
@@ -108,32 +108,33 @@ def main():
     # (SGD) / orange (SGDM-0.96) and the four averaged curves run
     # green-red-purple-brown in (a) and red-purple-brown-pink in (b).
     # ------------------------------------------------------------------ #
-    def _panel(fname, err, ave, label_last, ref_style, ave_colors):
+    def _panel(fname, err, ave, label_last, ave_label, ref_style, ave_colors):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(np.arange(K), err.mean(axis=0) ** 2, label=label_last,
+        ax.plot(np.arange(K), (err ** 2).mean(axis=0), label=label_last,
                 markevery=250, **ref_style)
         for j, n0 in enumerate(n0_list):
-            y = ave[n0].mean(axis=0) ** 2
-            ax.plot(np.arange(n0 + 1, K + 1), y,
-                    label=rf"Ave-{label_last}-$n_0$={n0}",
+            y = (ave[n0] ** 2).mean(axis=0)
+            ax.plot(np.arange(n0 + 1, n0 + 1 + y.size), y,
+                    label=rf"{ave_label}-$n_0$={n0}",
                     marker=ref_style["marker"], markevery=250,
                     linestyle="-", color=ave_colors[j])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-1])
+        ax.set_ylim([1e-9, 1e-2])
         ax.legend(fontsize=7)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    _panel("fig_n0_sgd.png", err_sgd, ave_sgd, "SGD",
+    _panel("fig_n0_sgd.png", err_sgd, ave_sgd, "SGD", "Ave-SGD",
            dict(color="#1f77b4", marker="o", linestyle=":"),
            ["#2ca02c", "#d62728", "#9467bd", "#8c564b"])
     _panel("fig_n0_sgdm.png", err_sgdm, ave_sgdm, f"SGDM-{args.gamma}",
-           dict(color="#ff7f0e", marker="v", linestyle="--"),
+           "Ave-SGDM",
+           dict(color="#ff7f0e", marker="v", linestyle="-."),
            ["#d62728", "#9467bd", "#8c564b", "#e377c2"])
 
     arrays = dict(err_sgd=err_sgd, err_sgdm=err_sgdm,

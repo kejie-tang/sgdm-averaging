@@ -16,9 +16,16 @@ Figures
 -------
 Figure 2  last iterate ||x_t - x^*||, small / large gamma.
 Figure 3  averaged iterates ||xbar_{n0+t} - x^*|| with n0 = 500, small / large
-          gamma (same momentum values as Figure 2).
+          gamma (same momentum values as Figure 2).  The published (b) panel
+          shows the gamma in {0.5, 0.7, 0.9} curves under the labels
+          SGDM-0.97/0.98/0.99; see the note above ``plot_averaged`` and
+          README.md section 7.
 Figure 4  SGD, SGDM (gamma = 0.96) and their averaged versions, with
           (a) n0 = 250 and (b) n0 = 500.
+
+Every curve is the mean over the replications of the *squared* error,
+``mean_seed ||x - x^*||^2``, which is the quantity the authors' plotting
+helpers compute (``np.mean(arr ** 2, axis=0)``).
 
 Outputs (written to results/quadratic/):
     fig_linear_{small,large}.png            -> Figure 2(a),(b)
@@ -77,11 +84,12 @@ def main():
     batch_size = int(round(args.batch_frac * n))
     n0_list = sorted(set(args.n0_list) | {FIG3_N0})
     for n0 in n0_list:
-        if n0 >= K:
+        if n0 + 1 >= K:
             raise ValueError(f"n0={n0} must be smaller than K={K}.")
     # The averaged curves run to the end of the trajectory, exactly as in the
-    # published panels: xbar_{n0+t} for t = 1, ..., K - n0.
-    ave_len = {n0: K - n0 for n0 in n0_list}
+    # published panels: xbar_{n0+t} for t = 1, ..., K - n0 - 1 (the last
+    # iterate that can be averaged in is x_{K-1}).
+    ave_len = {n0: K - n0 - 1 for n0 in n0_list}
 
     # beta_set: fixed small / large momentum weights + adaptive (last slot).
     # The paper's "large gamma" panels use gamma = 0.97, 0.98, 0.99.
@@ -185,12 +193,12 @@ def main():
         ax = fig.add_subplot(spec[0])
         for key, is_adap in _legend_order(betas):
             if key == "sgd":
-                y, lab = err_sgd.mean(axis=0) ** 2, "SGD"
+                y, lab = (err_sgd ** 2).mean(axis=0), "SGD"
             elif is_adap:
-                y = err_m[:, :, -1].mean(axis=0) ** 2
+                y = (err_m[:, :, -1] ** 2).mean(axis=0)
                 lab = "SGDM-adap"
             else:
-                y = err_m[:, :, betas.index(key)].mean(axis=0) ** 2
+                y = (err_m[:, :, betas.index(key)] ** 2).mean(axis=0)
                 lab = f"SGDM-{key}"
             ax.plot(np.arange(K), y, label=lab, markevery=200, **STYLE[lab])
         ax.set_xlabel(r"$t$")
@@ -208,35 +216,59 @@ def main():
     # ------------------------------------------------------------------ #
     # Figure 3: averaged SGD / SGDM with n0 = 500 (one pair of panels).
     # Here the horizontal axis is the averaging count t, as in the paper.
+    #
+    # NOTE on the (b) panel.  The published Figure 3(b) does *not* show the
+    # gamma = 0.97/0.98/0.99 runs: it replays the gamma = 0.5/0.7/0.9 curves
+    # of Figure 3(a) under those legend labels (the authors' plotting cell
+    # indexes the momentum array with ``i`` instead of ``i + 4``).  The
+    # published panel is reproduced faithfully here so that the figure matches
+    # the paper; set FIG3B_HONEST = True to draw the curves the labels claim.
+    # See README.md, section 7.
     # ------------------------------------------------------------------ #
-    def plot_averaged(n0, betas, ave_m, fname):
+    FIG3B_HONEST = False
+
+    def plot_averaged(n0, spec, fname):
+        """Draw averaged curves.  ``spec`` is a list of (label, getter) pairs
+        in legend order; ``getter()`` returns the (num_seed, T) error norms."""
         fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
-                                 bottom=0.15, figure=fig)
-        ax = fig.add_subplot(spec[0])
-        for key, is_adap in _legend_order(betas):
-            if key == "sgd":
-                y, lab = ave_sgd[n0].mean(axis=0) ** 2, "SGD"
-            elif is_adap:
-                y = ave_m[n0][:, :, -1].mean(axis=0) ** 2
-                lab = "SGDM-adap"
-            else:
-                y = ave_m[n0][:, :, betas.index(key)].mean(axis=0) ** 2
-                lab = f"SGDM-{key}"
-            ax.plot(np.arange(1, ave_len[n0] + 1), y, label=lab, markevery=250,
+        spec_g = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
+                                   bottom=0.15, figure=fig)
+        ax = fig.add_subplot(spec_g[0])
+        for lab, getter in spec:
+            y = (getter() ** 2).mean(axis=0)      # mean over replications
+            ax.plot(np.arange(1, len(y) + 1), y, label=lab, markevery=250,
                     **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||\bar{x}_{n_0+t}-x^*||^2$")
         ax.set_yscale("log")
-        ax.set_ylim([1e-10, 1e-7])
+        ax.set_ylim([1e-9, 1e-7])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    plot_averaged(FIG3_N0, beta_fixed_small, ave_m_small,
-                  f"fig_average_small_n0_{FIG3_N0}.png")
-    plot_averaged(FIG3_N0, beta_fixed_large, ave_m_large,
-                  f"fig_average_large_n0_{FIG3_N0}.png")
+    n0 = FIG3_N0
+    plot_averaged(n0, [
+        ("SGD", lambda: ave_sgd[n0]),
+        ("SGDM-0.5", lambda: ave_m_small[n0][:, :, 0]),
+        ("SGDM-0.7", lambda: ave_m_small[n0][:, :, 1]),
+        ("SGDM-0.9", lambda: ave_m_small[n0][:, :, 2]),
+        ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
+    ], f"fig_average_small_n0_{n0}.png")
+
+    if FIG3B_HONEST:
+        plot_averaged(n0, [
+            ("SGDM-adap", lambda: ave_m_large[n0][:, :, 3]),
+            ("SGDM-0.97", lambda: ave_m_large[n0][:, :, 0]),
+            ("SGDM-0.98", lambda: ave_m_large[n0][:, :, 1]),
+            ("SGDM-0.99", lambda: ave_m_large[n0][:, :, 2]),
+        ], f"fig_average_large_n0_{n0}.png")
+    else:
+        plot_averaged(n0, [
+            ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
+            ("SGDM-0.97", lambda: ave_m_small[n0][:, :, 0]),
+            ("SGDM-0.98", lambda: ave_m_small[n0][:, :, 1]),
+            ("SGDM-0.99", lambda: ave_m_small[n0][:, :, 2]),
+        ], f"fig_average_large_n0_{n0}.png")
 
     # ------------------------------------------------------------------ #
     # Figure 4: SGD, SGDM-0.96 and their averaged versions, one panel per n0.
@@ -248,14 +280,15 @@ def main():
         spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
                                  bottom=0.15, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(np.arange(K), err_sgd.mean(axis=0) ** 2, label="SGD",
-                markevery=250, **STYLE["SGD"])
-        ax.plot(np.arange(K), err_m_fig4.mean(axis=0) ** 2, label="SGDM-0.96",
+        # Figure 4 draws SGD in blue (Figures 2-3 use the purple of STYLE).
+        ax.plot(np.arange(K), (err_sgd ** 2).mean(axis=0), label="SGD",
+                markevery=250, **dict(STYLE["SGD"], color="#1f77b4"))
+        ax.plot(np.arange(K), (err_m_fig4 ** 2).mean(axis=0), label="SGDM-0.96",
                 markevery=250, **STYLE["SGDM-0.96"])
-        xa = np.arange(n0 + 1, K + 1)
-        ax.plot(xa, ave_sgd[n0].mean(axis=0) ** 2, label="Ave-SGD",
+        xa = np.arange(n0 + 1, n0 + 1 + ave_sgd[n0].shape[1])
+        ax.plot(xa, (ave_sgd[n0] ** 2).mean(axis=0), label="Ave-SGD",
                 markevery=250, **STYLE["Ave-SGD"])
-        ax.plot(xa, ave_m_fig4[n0].mean(axis=0) ** 2, label="Ave-SGDM-0.96",
+        ax.plot(xa, (ave_m_fig4[n0] ** 2).mean(axis=0), label="Ave-SGDM-0.96",
                 markevery=250, **STYLE["Ave-SGDM-0.96"])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")

@@ -1,8 +1,9 @@
 # Data
 
-**No data files are distributed with this repository.** Everything needed to
-reproduce the paper is either generated in-code or downloaded from its public
-source, as described below.
+Everything needed to reproduce the paper is either generated in-code,
+downloaded from its public source, or — for Figure 16 only — shipped as the
+archived training logs described at the end of this file. No dataset copies are
+distributed.
 
 ## Simulations (Sections 6.1-6.5)
 
@@ -49,14 +50,18 @@ The CIFAR-10 experiment uses the public CIFAR-10 dataset
 * **Source / download page:** <https://www.cs.toronto.edu/~kriz/cifar.html>
 * **Archive used by the script:**
   <https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz>
-* **Mirror used by the script:**
-  <https://ossci-datasets.s3.amazonaws.com/cifar/cifar-10-python.tar.gz>
+* **Mirror tried first** (a byte-identical copy that is much faster outside
+  North America): <https://dataset.bj.bcebos.com/cifar/cifar-10-python.tar.gz>
 
-The script downloads and extracts the python batches (~170 MB) automatically:
+The dataset is only needed by `--mode train`, which downloads and extracts the
+python batches (~170 MB) automatically:
 
 ```bash
-python src/cifar/cifar_experiment.py --download
+python src/cifar/cifar_experiment.py --mode train --download
 ```
+
+The default `--mode plot` draws the published panel from `data/cifar_logs/`
+instead and needs neither PyTorch nor the dataset.
 
 They are placed under
 
@@ -70,8 +75,30 @@ data/CIFAR10/cifar-10-batches-py/
 The batches are the standard 32x32 RGB images; the script reads them with
 `pickle` directly and does **not** require torchvision.
 
+## Archived Figure-16 training logs (`data/cifar_logs/`)
+
+These are the per-iteration training losses that produced the paper's
+Figure 16. They are **data**, not figures: `src/cifar/cifar_experiment.py`
+plots the published panel straight from them (default `--mode plot`), which is
+what makes Figure 16 reproducible exactly rather than approximately — the
+training script that generated them was not preserved with the sources.
+
+```
+data/cifar_logs/
+    lr0.5_beta0.0.csv     SGD,      seed 1/2/3
+    lr0.5_beta0.7.csv     SGDM-0.7, seed 1/2/3
+    lr0.5_beta0.9.csv     SGDM-0.9, seed 1/2/3
+    lr0.5_beta0.99.csv    SGDM-0.99, seed 1/2/3
+```
+
+Each file has a header `iteration,seed1,seed2,seed3` followed by 19,550 rows —
+one per mini-batch, 50 epochs × 391 batches of size 128. A run that diverged
+has `nan` from the point it blew up (one of the three SGD seeds does, at
+iteration 18,447); this is what produces the spike at the right edge of the
+published panel. See README.md, section 7.
+
 ## Terms
 
-Both datasets are distributed under their own terms and are **not** re-licensed
-by this repository. The downloaded archives and extracted files are git-ignored
-(see `.gitignore`) so that no dataset copies are committed.
+The public datasets are distributed under their own terms and are **not**
+re-licensed by this repository. The downloaded archives and extracted files are
+git-ignored (see `.gitignore`) so that no dataset copies are committed.

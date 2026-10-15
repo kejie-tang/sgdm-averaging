@@ -97,13 +97,29 @@ def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None):
                 mu=mu, L=L, initial=initial)
 
 
-def generate_logistic_data(n, p, seed, theta0=None):
+def generate_logistic_data(n, p, seed, theta0=None, rng=None):
     """Generate binary-logistic data as in Section 6.4 of the paper.
 
     a_i ~ N(0, I_d);  b_i = 1 with prob. sigmoid(theta0^T a_i), 0 otherwise.
     The default theta0 = (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
+
+    Note that the authors' notebook draws the label as
+    ``y = (sigmoid(theta0^T a) < U(0, 1))``, i.e. with probability
+    ``1 - sigmoid(theta0^T a) = sigmoid(-theta0^T a)``; that is what is
+    implemented here, since it is what produced Figures EC.1-EC.3.  The two
+    conventions differ only by the global sign of the population solution, and
+    since a_i is centred Gaussian the marginal law of the error curves is the
+    same either way (the adaptive weight is unchanged: the realised mean over
+    200 replications is 0.75 under both).
+
+    ``rng`` may be supplied to draw from a caller-owned random stream.  The
+    authors generate the features, the labels and the mini-batch schedule from
+    one unbroken ``np.random`` stream per replication; the logistic experiment
+    passes the same ``RandomState`` here and to :func:`make_batch_schedule` so
+    that the realisation matches theirs exactly.
     """
-    rng = np.random.RandomState(seed)
+    if rng is None:
+        rng = np.random.RandomState(seed)
     if theta0 is None:
         theta0 = np.ones((p, 1)) / np.sqrt(p)
     X = rng.multivariate_normal(np.zeros(p), np.eye(p), size=n)
@@ -115,14 +131,18 @@ def generate_logistic_data(n, p, seed, theta0=None):
 # --------------------------------------------------------------------------- #
 # Mini-batch schedule
 # --------------------------------------------------------------------------- #
-def make_batch_schedule(n, batch_size, K, seed, replace=False):
+def make_batch_schedule(n, batch_size, K, seed, replace=False, rng=None):
     """Pre-sample the index sequence used by every iteration.
 
     Returns a flat int array of length ``K * batch_size``; iteration k uses the
     slice ``schedule[k*batch_size:(k+1)*batch_size]``.  Pre-sampling guarantees
     that SGD and SGDM see the *same* batches (variance reduction in the plots).
+
+    ``rng`` may be supplied to draw from a caller-owned stream; see
+    :func:`generate_logistic_data`.
     """
-    rng = np.random.RandomState(seed)
+    if rng is None:
+        rng = np.random.RandomState(seed)
     if replace:
         return rng.randint(n, size=K * batch_size)
     idx = np.empty(K * batch_size, dtype=np.int64)
@@ -235,14 +255,17 @@ def decaying_schedule(n0, K, alpha0):
 def averaged_errors(traj, x_star, n0, T):
     """|| mean_{j=n0+1}^{n0+t} x_j - x^* || for t = 1..T.
 
-    ``traj`` is the (K, p, 1) last-iterate trajectory, ``n0`` the burn-in and
-    ``T`` the number of averaged increments to report.
+    ``traj`` is the (K, p, 1) last-iterate trajectory with ``traj[k] = x_k``,
+    ``n0`` the burn-in and ``T`` the number of averaged increments to report.
+    The first reported point is x_{n0+1}, as in the paper's definition
+    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j, so at most K - n0 - 1 points
+    can be produced.
     """
-    T = min(T, traj.shape[0] - n0)
+    T = min(T, traj.shape[0] - n0 - 1)
     out = np.empty(T)
     run = np.zeros_like(x_star)
     for t in range(1, T + 1):
-        run = run + traj[n0 + t - 1]
+        run = run + traj[n0 + t]
         out[t - 1] = np.linalg.norm(run / t - x_star)
     return out
 

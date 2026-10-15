@@ -13,7 +13,7 @@ One sub-directory per group of figures. All scripts import the shared module
 | `clt/` | 8, 12 | `python src/clt/clt_experiment.py` |
 | `sensitivity/` | 9, 10, 11 | `python src/sensitivity/sensitivity_experiment.py` |
 | `mnist_tanh/` | 13, 14, 15 | `python src/mnist_tanh/mnist_tanh_experiment.py --download` |
-| `cifar/` | 16 | `python src/cifar/cifar_experiment.py --download` |
+| `cifar/` | 16 | `python src/cifar/cifar_experiment.py` (from `data/cifar_logs/`; `--mode train --download` to re-train) |
 | `logistic/` | EC.1, EC.2, EC.3 | `python src/logistic/logistic_experiment.py` |
 | `mnist/` | EC.4 | `python src/mnist/mnist_experiment.py --download` |
 
@@ -28,11 +28,11 @@ experiments:
 | Function | Purpose |
 |---|---|
 | `generate_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu` |
-| `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)` |
-| `make_batch_schedule` | the pre-sampled index sequence shared by SGD and SGDM |
+| `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)`; accepts a caller-owned `rng` so the features, labels and batches can be drawn from one stream |
+| `make_batch_schedule` | the pre-sampled index sequence shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
 | `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
-| `averaged_errors` / `last_iterate_errors` | the two error curves of the figures |
+| `averaged_errors` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` starts at `x_{n0+1}`, matching `xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j` |
 | `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities |
 
 `batch_gradient_sequence` is a pure speed-up: a learning-rate / momentum sweep
@@ -51,6 +51,10 @@ learning rates, momentum weights, number of replications, seeds) follow those
 that produced the published figures. Momentum weights per panel are documented
 in `../README.md` (Section 5).
 
+The error curves are aggregated over replications by **squaring first and then
+averaging** — `mean_seed ||x - x*||^2`, i.e. `np.mean(err ** 2, axis=0)` — which
+is what the authors' plotting helpers compute.
+
 * theory (Fig 1)          <- `plot的副本3.ipynb`
 * quadratic (Figs 2-4)    <- `sgd_and_sgdm_repeat2.ipynb` / `...-save*.ipynb`
 * n0 sensitivity (Fig 5)  <- `sgd_and_sgdm_decaying.ipynb`
@@ -63,9 +67,16 @@ in `../README.md` (Section 5).
 * CIFAR (Fig 16)          <- `cifar05.ipynb` and
   `cifar/logistic_repeat2_average的副本.ipynb` (plotting; both load
   `cifar/logs 2/`), `cifar/logs 2/` (training logs, incl. `num.log`, which
-  records the optimizer call). The training script itself was lost; the
-  architecture was recovered from the logs (see `cifar/vgg.py`).
-* logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb`
+  records the optimizer call). The four series behind the published panel ship
+  as `data/cifar_logs/`, which is what `cifar_experiment.py` plots by default.
+  The training script itself was lost; the architecture was recovered from the
+  logs (see `cifar/vgg.py`) and re-implemented behind `--mode train`.
+* logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb` (averaging,
+  moments) and `...的副本.ipynb` (n₀ = 20 variant). The scripts reproduce the
+  authors' own recursion, including the special first momentum `g_1 = grad(x_1)`
+  without the `(1 - gamma)` factor; see `../README.md` Section 4. Re-running
+  the notebook's cell verbatim and comparing with
+  `results/logistic/logistic_raw.npz` agrees to 1.1e-15.
 * MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`,
   `logs-save-logistic/`
 
