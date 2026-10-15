@@ -60,8 +60,11 @@ in `../README.md` (Section 5).
 * sensitivity (Figs 9-11) <- `多线.py` (learning-rate grid), `sgd_and_sgdm_repeat-save*.ipynb`
 * MNIST tanh (Figs 13-15) <- `nn_models.py`, `logistic_mnist_fixed_alpha_beta.py`,
   `average.ipynb`, `logs/`
-* CIFAR (Fig 16)          <- `cifar05.ipynb` (plotting), `cifar/logs 2/`
-  (training logs; the training script itself was lost)
+* CIFAR (Fig 16)          <- `cifar05.ipynb` and
+  `cifar/logistic_repeat2_average的副本.ipynb` (plotting; both load
+  `cifar/logs 2/`), `cifar/logs 2/` (training logs, incl. `num.log`, which
+  records the optimizer call). The training script itself was lost; the
+  architecture was recovered from the logs (see `cifar/vgg.py`).
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb`
 * MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`,
   `logs-save-logistic/`

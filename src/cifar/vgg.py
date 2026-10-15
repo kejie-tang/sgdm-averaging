@@ -1,12 +1,27 @@
 """
 VGG-11 for CIFAR-10 (Figure 16).
 
-The paper's Figure 16 trains a VGG-11 architecture (Simonyan & Zisserman 2014)
-on CIFAR-10 with the multi-class cross-entropy.  The authors' original CIFAR
-training script was not preserved with the experiment sources, so this is a
-faithful standard VGG-11 for 32x32 inputs (eight convolutional layers, five
-max-pools, batch normalisation, and a single 512 -> 10 linear classifier),
-which is the usual CIFAR-10 realisation of VGG-11.
+The paper cites VGG-11 as in Simonyan & Zisserman (2014), i.e. the *original*
+network: eight convolutional layers, five max-pools and **no batch
+normalisation**.  The usual CIFAR-10 realisation shrinks the 7x7x512 feature map
+to 1x1x512 with the five 2x2 max-pools and feeds it to a single 512 -> 10 linear
+classifier.
+
+The authors' original CIFAR training script was not preserved with the
+experiment sources.  The architecture above was identified from the stored
+training logs (`logs 2/`, batch 128): the authors' first-iteration loss is
+2.2958, i.e. the initial logits are essentially zero, and at alpha = 0.5 the
+momentum runs start from chance level and descend gradually.  A network *with*
+batch normalisation behaves quite differently -- it has a much larger initial
+loss (2.5-2.7) and starts learning inside the first epoch.  With batch
+normalisation removed, the reconstruction reproduces the stored logs of every
+SGDM run to within about a tenth (see README.md, section 7).
+
+Note that a no-BN network at alpha = 0.5 sits on a knife edge: the SGD training
+loss either stagnates at log(10) = 2.303 for the whole run or runs away
+entirely, depending on the seed.  The authors' own three seeds display both
+outcomes, which is why the published SGD curve (a mean over seeds) is not
+reproducible from the paper's description alone.
 """
 
 from __future__ import annotations
@@ -38,7 +53,6 @@ class VGG(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 layers += [nn.Conv2d(in_channels, v, kernel_size=3, padding=1),
-                           nn.BatchNorm2d(v),
                            nn.ReLU(inplace=True)]
                 in_channels = v
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]

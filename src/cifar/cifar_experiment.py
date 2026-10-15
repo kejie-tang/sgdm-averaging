@@ -7,16 +7,21 @@ CIFAR-10 (Krizhevsky et al. 2009): N = 50,000 training images of size 32x32
 with three colour channels, 10 classes.  The loss is f_i(X) = H(VGG(X), b_i),
 the multi-class cross-entropy.  Learning rate alpha = 0.5 and momentum weights
 gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  As elsewhere, alpha and gamma are
-realised with ``SGD(lr = alpha * (1 - gamma), momentum = gamma)``.
+realised with ``SGD(lr = alpha * (1 - gamma), momentum = gamma)``.  (The
+authors' own log prints ``pytorch lr = 0.5`` for every momentum weight, i.e.
+the unscaled alpha; the realised step is the scaled one above.)
 
 The stored logs behind Figure 16 run 50 epochs with 391 mini-batches per epoch,
 i.e. 19,550 iterations with a batch of 128; those are the defaults here.  (The
 paper's text quotes B = 256 for this experiment, which would give 195 batches
 per epoch.)
 
-This is a non-convex problem: SGD performs well early but eventually diverges,
-whereas SGDM with gamma in {0.7, 0.9, 0.99} converges; unusually, the largest
-momentum (0.99) accelerates convergence.
+There is no batch normalisation: the paper cites the original VGG-11, and this
+is what the stored logs imply (see ``vgg.py`` and README.md, section 7).
+
+This is a non-convex problem: SGDM with gamma in {0.7, 0.9, 0.99} descends
+smoothly, while SGD at alpha = 0.5 is on a knife edge -- it either stagnates at
+chance level for the whole run or runs away.
 
 Reporting convention
 --------------------
@@ -29,20 +34,22 @@ Note
 ----
 The authors' original CIFAR training script was not preserved, so this script
 (and ``vgg.py``) is a reconstruction from the paper's description and the
-stored training logs (learning rate, epochs, batches per epoch, momentum
-weights and the reporting rule).
+stored training logs (architecture, learning rate, epochs, batches per epoch,
+momentum weights and the reporting rule).
 
-It reproduces the paper's *qualitative* conclusion -- SGD is by far the least
-stable method (per-iteration loss spikes to ~39, against ~10 for SGDM-0.9) and
-SGDM with gamma = 0.99 converges fastest -- but **not** the published SGD
-blow-up: in the paper SGD runs away in the last few hundred iterations, whereas
-here it keeps descending. The remaining difference is a recipe detail that the
-lost script would have pinned down (initialisation, weight decay, whether the
-crop/flip augmentation is used, or the exact learning-rate convention).
+With the correct (no-BN) architecture the three SGDM curves reproduce the
+stored logs to a mean absolute deviation of 0.11-0.19 in the running mean.
 
-Batch normalisation is required for this experiment: without it, SGD at
-alpha = 0.5 makes no progress at all (the loss stays at 2.303), which does not
-match the paper's "SGD performs well at the early stage".
+The SGD curve does not reproduce exactly, and the reason is now understood:
+at alpha = 0.5 the no-BN network is bistable.  In the authors' own log, of the
+three seeds one stagnates at log(10) = 2.3036 for all 50 epochs, one escapes at
+epoch 11 and blows up at epoch 46, and one escapes at epoch 5 and ends at NaN.
+The published curve is their mean, which is dominated by the two escaping runs
+and carries a spike at t ~ 19,500 from the blow-up.  This reconstruction also
+lands on a mixture of stagnating and escaping seeds, and its mean SGD curve
+tracks the published one from 2.30 down to 1.77, but none of its seeds blows
+up, so the final spike is absent.  Reproducing it would require the original
+seeds and weight initialisation, which are not recorded.
 
 Data
 ----

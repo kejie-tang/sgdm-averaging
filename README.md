@@ -122,9 +122,10 @@ python src/mnist_tanh/mnist_tanh_experiment.py --download
 * Figure 14 — Averaged SGD and averaged SGDM, n₀ = ⌊N/B⌋ = 234.
 * Figure 15 — Averaged SGD and averaged SGDM, n₀ = 2⌊N/B⌋ = 468.
 
-**Figure 16** — CIFAR-10 with a VGG-11 network. α = 0.5, γ ∈ {0.7, 0.9, 0.99},
-50 epochs. The run behind the published figure uses 391 mini-batches per epoch
-(B = 128) — the paper's text quotes B = 256, which would give 195.
+**Figure 16** — CIFAR-10 with a VGG-11 network (no batch normalisation).
+α = 0.5, γ ∈ {0.7, 0.9, 0.99}, 50 epochs. The run behind the published figure
+uses 391 mini-batches per epoch (B = 128) — the paper's text quotes B = 256,
+which would give 195.
 ```bash
 python src/cifar/cifar_experiment.py --download
 ```
@@ -181,7 +182,7 @@ follow the code, which is what the published panels show.
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
-| 16 | `src/cifar/cifar_experiment.py` | VGG-11, B = 128, α = 0.5, 50 epochs |
+| 16 | `src/cifar/cifar_experiment.py` | VGG-11 (no BN), B = 128, α = 0.5, 50 epochs |
 | EC.1 | `src/logistic/logistic_experiment.py` | α = 0.5, (a) γ = {0.3,0.5,0.7,adap} / (b) {adap,0.8,0.9} |
 | EC.2 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 10 |
 | EC.3 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 40 |
@@ -211,22 +212,29 @@ follow the code, which is what the published panels show.
 Every figure in the paper's main text (Figures 1-16) and electronic companion
 (Figures EC.1-EC.4) has a script here. Two caveats are worth stating.
 
-* **Figure 16 (CIFAR-10) is a reconstruction, and it does not reproduce the
-  published SGD curve.** The authors' original CIFAR training script was not
-  preserved with the sources, so `src/cifar/` was rebuilt from the paper's
-  description; its settings (learning rate 0.5, 50 epochs, 391 mini-batches per
-  epoch, momentum weights, and the running-mean reporting rule) were recovered
-  from the stored training logs. What it reproduces is the *ordering* and the
-  qualitative picture of the paper: SGD is the least stable method (its
-  per-iteration loss spikes to ~39, against ~10 for SGDM-0.9) and SGDM with
-  γ = 0.99 converges fastest. What it does **not** reproduce is the final
-  blow-up: in the paper SGD's loss runs away in the last few hundred iterations
-  (Figure 16 rises past 2.5), whereas the reconstruction, like SGDM, keeps
-  descending. The gap is a recipe detail that the lost script would have fixed
-  (weight initialisation, weight decay, whether the 4-pixel crop/flip
-  augmentation is applied, or the exact learning-rate convention). Batch
-  normalisation is *required*: without it SGD does not move at all at α = 0.5
-  (the loss stays at 2.303), so it is kept.
+* **Figure 16 (CIFAR-10) is a reconstruction; three of its four curves match,
+  and the fourth is not reproducible.** The authors' original CIFAR training
+  script was not preserved with the sources, so `src/cifar/` was rebuilt from
+  the paper's description; its settings (no batch normalisation, α = 0.5,
+  50 epochs, 391 mini-batches per epoch, momentum weights and the running-mean
+  reporting rule) were recovered from the stored training logs. With those
+  settings the three SGDM curves of the released figure match the stored logs
+  to a mean absolute deviation of 0.11-0.19 in the running mean. The remaining
+  gap is in the SGD curve, and its cause is identified: at α = 0.5 the no-BN
+  network is bistable. Among the authors' own three seeds one stagnates at
+  log(10) = 2.3036 for all 50 epochs, one escapes at epoch 11 and blows up at
+  epoch 46 (this blow-up is the spike at t ≈ 19,500 in the published panel),
+  and one escapes at epoch 5 and ends at NaN. The published curve is their mean
+  over seeds, so it is dominated by the two escaping runs. This reconstruction
+  also lands on a mixture of stagnating and escaping seeds, and its mean SGD
+  curve follows the published one — from 2.30 down to 1.77 — up to the very end,
+  but it contains no blow-up, so the final spike is missing. Reproducing that
+  spike would require the original seeds and weight initialisation, which are
+  not recorded.
+* The tanh network behind Figures 13-15 is a two-layer perceptron,
+  784 → 500 (tanh) → 10. See the module docstring of
+  `src/mnist_tanh/nn_models.py` for how it maps onto the paper's
+  `f_i(X) = H(tanh(X^T a_1i) a_2i, b_i)`.
 * The tanh network behind Figures 13-15 is a two-layer perceptron,
   784 → 500 (tanh) → 10. See the module docstring of
   `src/mnist_tanh/nn_models.py` for how it maps onto the paper's

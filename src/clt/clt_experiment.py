@@ -44,7 +44,7 @@ MARKERS = ["o", "v", "s", "p", "P", "*", "+", "x"]
 LINESTYLES = ["-.", "--", ":", "-"]
 
 
-def hist_figure(z, gamma_label, fname, out_dir):
+def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
@@ -54,7 +54,7 @@ def hist_figure(z, gamma_label, fname, out_dir):
     ax.plot(x, np.exp(-x ** 2 / 2) / np.sqrt(2 * np.pi), "k", lw=2,
             label="N(0,1)")
     ax.hist(z, range=(-5, 5), bins=20, density=True, rwidth=0.8,
-            label=gamma_label)
+            color=color, label=gamma_label)
     ax.set_ylim([0, 0.45])
     ax.set_xlabel(r"$Z$")
     ax.set_ylabel("density")
@@ -138,8 +138,8 @@ def main():
     print(f"[clt-hist] mean/std SGDM = {z_sgdm.mean():.3f} / {z_sgdm.std():.3f}")
 
     hist_figure(z_sgd, "SGD", "fig_clt_sgd.png", args.out)
-    hist_figure(z_sgdm, f"SGDM ($\\gamma$={args.gamma_hist})",
-                "fig_clt_sgdm.png", args.out)
+    hist_figure(z_sgdm, f"SGDM-{args.gamma_hist}",
+                "fig_clt_sgdm.png", args.out, color="#ff7f0e")
 
     # --- coverage vs. learning rate (Figure 12) ---
     rng2 = np.random.RandomState(1)
