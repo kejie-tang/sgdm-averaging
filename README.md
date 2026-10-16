@@ -58,8 +58,15 @@ See `data/README.md`.
 ## 4. Reproducing the figures
 
 Run from the repository root. `bash scripts/run_all.sh` does everything
-(`FAST=1` for a quick reduced-fidelity pass). Each script writes its figure into
-`results/<exp>/`; `bash scripts/make_tarball.sh` then packs the whole release —
+(`FAST=1` for a quick reduced-fidelity pass).
+
+**Expected output.** A complete run writes 34 PNGs under `results/<exp>/`.
+Most figures are one file per panel — (a) and (b) — while Figures 1, 9, 10, 11,
+12 and 16 are drawn on a single canvas each. Alongside them go the raw `*.npz`
+arrays the panels are computed from. Each script's docstring lists the files it
+writes and section 5 maps them to the figures.
+
+`bash scripts/make_tarball.sh` then packs the whole release —
 those figures, the archived Figure-16 logs and the sources — into one archive
 for submission, leaving the downloaded MNIST / CIFAR-10 copies out. Use `RAW=0`
 for a figure-only archive (~4 MB) if the submission system caps attachments.
@@ -249,10 +256,10 @@ Polyak average is formed from `traj[n0]` onwards, i.e. `x̄_{n₀+t}` for
 * **Adaptive weight.** `γ = ((1 - μα)/(1 + μα))²`, with μ the smallest
   eigenvalue of the population Hessian.
 * **Averaged iterate.** `x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j`.
-* **Trajectory indexing.** The last-iterate panels start at `t = 0` with the
-  initial point `x₀`, so the curve is `‖xₜ − x*‖` for `t = 0, 1, 2, …`; the
-  averaged panels plot `x̄_{n₀+t}` for `t = 1, 2, …`, as the definition above
-  produces.
+* **Trajectory indexing.** The last-iterate panels are drawn over the
+  zero-based array index, so their `t = 0` is the initial point `x₁` and the
+  curve is `‖x_{t+1} − x*‖` for `t = 0, 1, 2, …`; the averaged panels plot
+  `x̄_{n₀+t}` for `t = 1, 2, …`, as the definition above produces.
 * **Reported quantity.** The quadratic and logistic panels plot the squared
   error `‖x − x*‖²` averaged over replications by **squaring first and then
   averaging**, i.e. `mean_s ‖x_s − x*‖²` (`np.mean(err ** 2, axis=0)`). The
@@ -262,18 +269,9 @@ Polyak average is formed from `traj[n0]` onwards, i.e. `x̄_{n₀+t}` for
   averaged is the loss of the Polyak-averaged parameters from `n₀` onwards
   (before `n₀` it is the ordinary mini-batch loss).
 * **One stream per replication.** Each replication is driven by a single
-  unbroken `numpy` stream, seeded with the replication index. The problem data
-  and the mini-batch index sequence are drawn from it **in the authors' order**
-  — `V = rand(N, d, d)` → `b_i = rand(N, d, 1)` → `u = rand(d, 1)` → batch
-  indices — which is what the notebook prototypes do (`sgdm_core.draw_*` +
-  `build_*` / `generate_*` with a caller-owned `rng`, and
-  `make_batch_schedule(..., rng=rng)`). Starting the schedule from a freshly
-  seeded stream instead gives a statistically equivalent but *different*
-  realisation, so the released panels are no longer the authors' exact curves.
-  SGD and SGDM share that one mini-batch sequence within a replication.
-* Because the mini-batches do not depend on α or γ, every sweep (the learning
-  rate grids of Figures 2-4, 6, 7, 9-11 and the CLT study) forms the mini-batch
-  gradients once per replication with `sgdm_core.batch_gradient_sequence` and
-  replays them for each configuration. This is numerically identical to
-  re-averaging the batches for every configuration, only faster; it is a pure
-  speed-up, not a different experiment.
+  unbroken `numpy` stream, seeded with the replication index; the problem data
+  and the mini-batch index sequence are both drawn from it, in the authors'
+  order, and SGD and SGDM share that one sequence. `src/README.md` explains why
+  the order matters, and how a sweep over α or γ reuses one pass of mini-batch
+  gradients (`sgdm_core.batch_gradient_sequence`) — numerically identical to
+  recomputing them, only faster.

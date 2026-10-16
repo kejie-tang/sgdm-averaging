@@ -32,7 +32,8 @@ Anonymous repository (for review):
 > redistributed.
 >
 > Repository: <https://anonymous.4open.science/r/sgdm-averaging-2F7D>
-> (also provided as a supplementary archive `code_release.zip`).
+> (also provided as a supplementary archive `sgdm-averaging.tar.gz`, built by
+> `scripts/make_tarball.sh`).
 
 ## Data Availability
 
@@ -99,36 +100,12 @@ https://anonymous.4open.science/r/sgdm-averaging-2F7D
 mirror exposes no author names, affiliations, e-mails or account details.
 Reviewers should be given this slug, never a `github.com` URL.
 
-Alternatively, upload `code_release.zip` as supplementary material — no URL is
-exposed, though reviewers cannot browse it as conveniently.
+Alternatively, upload the archive built by `scripts/make_tarball.sh` as
+supplementary material — no URL is exposed, though reviewers cannot browse it
+as conveniently.
 
-## Checklist before pushing
+## Anonymous-mirror housekeeping
 
-```bash
-TERMS="surname1|surname2|university|department|institute-abbrev"
-
-# 1. no names / affiliations / e-mails in the files
-grep -rniE "$TERMS" --include="*.md" --include="*.py" --include="*.sh" .
-
-# 2. no names in the git history
-git log --all --format="%an <%ae> %s" | grep -iE "$TERMS"
-
-# 3. no local absolute paths (would leak a user name)
-grep -rnE "/Users/|/home/|[A-Z]:\\\\Users" --include="*.py" --include="*.sh" .
-```
-
-History is rewritten with
-
-```bash
-git filter-branch -f --env-filter '
-export GIT_AUTHOR_NAME="Anonymous Authors"
-export GIT_AUTHOR_EMAIL="anonymous@example.com"
-export GIT_COMMITTER_NAME="Anonymous Authors"
-export GIT_COMMITTER_EMAIL="anonymous@example.com"
-' -- --all
-rm -rf .git/refs/original
-git reflog expire --expire=now --all && git gc --prune=now
-```
-
-(already applied — every commit is authored by "Anonymous Authors
-<anonymous@example.com>").
+The history is rewritten so that every commit is authored by "Anonymous Authors
+<anonymous@example.com>"; check with `git log --format="%an <%ae>" | sort -u`
+before sharing the repository.
