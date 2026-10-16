@@ -3,9 +3,9 @@ Figure 5: sensitivity of the averaged iterates to the burn-in n0.
 
 Setting
 -------
-Quadratic loss (Section 6.1 of the paper): N = 20,000, d = 10,
+Quadratic loss (Section 5.1 of the paper): N = 20,000, d = 10,
 A_i = V_i^T V_i + 10 I_d (rho = 1, so the average condition number is L/mu =
-3.5), batch size B = 0.2 N, learning rate alpha = 0.001, K = 1500 iterations,
+3.5), batch size B = 0.2 N, learning rate alpha = 0.001, n = 1500 iterations,
 200 independent replications.  The momentum weight is fixed at gamma = 0.96
 (the average of the adaptive weight over the replications).
 
@@ -52,9 +52,9 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
-    ap.add_argument("--K", type=int, default=1500)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--n", type=int, default=1500)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--batch_frac", type=float, default=0.2)
@@ -68,42 +68,42 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p, K = args.n, args.p, args.K
-    batch_size = int(round(args.batch_frac * n))
+    N, d, n = args.N, args.d, args.n
+    batch_size = int(round(args.batch_frac * N))
     n0_list = sorted(args.n0_list)
-    if n0_list[-1] >= K:
-        raise ValueError(f"n0={n0_list[-1]} must be smaller than K={K}.")
+    if n0_list[-1] >= n:
+        raise ValueError(f"n0={n0_list[-1]} must be smaller than n={n}.")
 
-    err_sgd = np.zeros((args.num_seed, K))
-    err_sgdm = np.zeros((args.num_seed, K))
-    # per n0 the averaged curve has length K - n0 (t = n0+1, ..., K)
-    ave_sgd = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
-    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
+    err_sgd = np.zeros((args.num_seed, n))
+    err_sgdm = np.zeros((args.num_seed, n))
+    # per n0 the averaged curve has length n - n0 (t = n0+1, ..., n)
+    ave_sgd = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
+    ave_sgdm = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[n0] seed {seed}/{args.num_seed}", flush=True)
         rng = np.random.RandomState(seed)
-        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        V, bi_r, u = draw_quadratic_problem(N, d, rng)
         data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
         # SGD and SGDM replay the same batches; form the batch gradients once.
-        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
 
         traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                       args.alpha, K, A_seq=A_seq, b_seq=b_seq)
+                       args.alpha, n, A_seq=A_seq, b_seq=b_seq)
         err_sgd[seed] = last_iterate_errors(traj, x_star)
         for n0 in n0_list:
-            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, K - n0)
+            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, n - n0)
 
         traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                          args.alpha, args.gamma, K, A_seq=A_seq, b_seq=b_seq)
+                          args.alpha, args.gamma, n, A_seq=A_seq, b_seq=b_seq)
         err_sgdm[seed] = last_iterate_errors(traj_m, x_star)
         for n0 in n0_list:
-            ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, K - n0)
+            ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, n - n0)
 
     # ------------------------------------------------------------------ #
     # Plotting.  Panel (a) has no momentum, panel (b) is SGDM-0.96; both
@@ -117,7 +117,7 @@ def main():
         spec = gridspec.GridSpec(1, 1, left=0.1, right=0.9, top=0.9,
                                  bottom=0.2, figure=fig)
         ax = fig.add_subplot(spec[0])
-        ax.plot(np.arange(K), (err ** 2).mean(axis=0), label=label_last,
+        ax.plot(np.arange(n), (err ** 2).mean(axis=0), label=label_last,
                 markevery=0.3, **ref_style)
         for j, n0 in enumerate(n0_list):
             y = (ave[n0] ** 2).mean(axis=0)

@@ -3,15 +3,15 @@ Figure 7: decaying learning rates.
 
 Setting
 -------
-Quadratic loss (Section 6.1): N = 20,000, d = 10, A_i = V_i^T V_i + 10 I_d,
-batch size B = 0.2 N, K = 2000 iterations, 200 replications, momentum weight
+Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i^T V_i + 10 I_d,
+batch size B = 0.2 N, n = 2000 iterations, 200 replications, momentum weight
 gamma = 0.96.  The learning rate decays as
 
     alpha_t = alpha0 * sqrt(n0 / max(n0, t)),       alpha0 = 0.001,
 
 i.e. alpha0 up to the burn-in and alpha0 * sqrt(n0/t) afterwards, which is the
 paper's alpha_t = alpha0 (max{n0, t})^{-1/2} up to the constant sqrt(n0).
-This schedule does not require knowing the horizon K in advance.
+This schedule does not require knowing the horizon n in advance.
 
 Panel layout
 ------------
@@ -59,9 +59,9 @@ CURVES = [("SGD", 0, 0, ":"),
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
-    ap.add_argument("--K", type=int, default=2000)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--n", type=int, default=2000)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--alpha0", type=float, default=0.001)
     ap.add_argument("--batch_frac", type=float, default=0.2)
@@ -73,44 +73,44 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p, K = args.n, args.p, args.K
-    batch_size = int(round(args.batch_frac * n))
+    N, d, n = args.N, args.d, args.n
+    batch_size = int(round(args.batch_frac * N))
     n0_list = sorted(args.n0_list)
-    if n0_list[-1] >= K:
-        raise ValueError(f"n0={n0_list[-1]} must be smaller than K={K}.")
+    if n0_list[-1] >= n:
+        raise ValueError(f"n0={n0_list[-1]} must be smaller than n={n}.")
 
-    err_sgd = np.zeros((args.num_seed, K))
-    err_sgdm = np.zeros((args.num_seed, K))
-    ave_sgd = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
-    ave_sgdm = {n0: np.zeros((args.num_seed, K - n0 - 1)) for n0 in n0_list}
+    err_sgd = np.zeros((args.num_seed, n))
+    err_sgdm = np.zeros((args.num_seed, n))
+    ave_sgd = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
+    ave_sgdm = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[decaying] seed {seed}/{args.num_seed}", flush=True)
         rng = np.random.RandomState(seed)
-        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        V, bi_r, u = draw_quadratic_problem(N, d, rng)
         data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
         # The batches do not depend on n0, so the batch gradients are formed
         # once per replication and replayed by every panel / method.
-        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
 
         # the schedule depends on n0, so each panel needs its own run
         for n0 in n0_list:
-            alphas = decaying_schedule(n0, K, args.alpha0)
+            alphas = decaying_schedule(n0, n, args.alpha0)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                           alphas, K, A_seq=A_seq, b_seq=b_seq)
-            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, K - n0)
+                           alphas, n, A_seq=A_seq, b_seq=b_seq)
+            ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, n - n0)
             if n0 == n0_list[0]:
                 err_sgd[seed] = last_iterate_errors(traj, x_star)
 
             traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                              alphas, args.gamma, K, A_seq=A_seq, b_seq=b_seq)
-            ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, K - n0)
+                              alphas, args.gamma, n, A_seq=A_seq, b_seq=b_seq)
+            ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, n - n0)
             if n0 == n0_list[0]:
                 err_sgdm[seed] = last_iterate_errors(traj_m, x_star)
 
@@ -126,9 +126,9 @@ def main():
         ax = fig.add_subplot(spec[0])
         for label, ci, mi, ls in CURVES:
             if label == "SGD":
-                y, x = (err_sgd ** 2).mean(axis=0), np.arange(K)
+                y, x = (err_sgd ** 2).mean(axis=0), np.arange(n)
             elif label == "SGDM-0.96":
-                y, x = (err_sgdm ** 2).mean(axis=0), np.arange(K)
+                y, x = (err_sgdm ** 2).mean(axis=0), np.arange(n)
             elif label == "Ave-SGD":
                 y = (ave_sgd[n0] ** 2).mean(axis=0)
                 x = np.arange(n0 + 1, n0 + 1 + y.size)

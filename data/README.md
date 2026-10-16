@@ -5,7 +5,7 @@ downloaded from its public source, or — for Figure 16 only — shipped as the
 archived training logs described at the end of this file. No dataset copies are
 distributed.
 
-## Simulations (Sections 6.1-6.5)
+## Simulations (Sections 5.1 and EC.7.1)
 
 The quadratic-loss and logistic-loss experiments use **synthetic data generated
 in-code** from the seeds and parameter values given in the paper. Nothing needs

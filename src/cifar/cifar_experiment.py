@@ -116,12 +116,12 @@ def moving_ave2(arr, k=390):
     left of the working array and never changes the result.
     """
     arr = np.asarray(arr, dtype=float)
-    n = len(arr)
-    ar = np.zeros([n + k])
+    n_iter = len(arr)          # the paper's ``n``: number of iterations
+    ar = np.zeros([n_iter + k])
     ar[0:k] = arr[0]
-    ar[k:(n + k)] = arr
+    ar[k:(n_iter + k)] = arr
     ma = arr.copy()
-    for idx in range(1, n):
+    for idx in range(1, n_iter):
         ma[idx] = np.mean(ar[k:(idx + k)])
     return ma
 
@@ -227,8 +227,8 @@ def run_one(seed, gamma, lr, epochs, batch_size, X, y, device, max_iter=None):
         torch.cuda.manual_seed_all(seed)
     rng = np.random.default_rng(seed)
 
-    n = X.shape[0]
-    num_batches = int(round(n / batch_size))
+    N = X.shape[0]
+    num_batches = int(round(N / batch_size))
     mean = torch.from_numpy(CIFAR_MEAN).view(1, 3, 1, 1)
     std = torch.from_numpy(CIFAR_STD).view(1, 3, 1, 1)
 
@@ -240,7 +240,7 @@ def run_one(seed, gamma, lr, epochs, batch_size, X, y, device, max_iter=None):
     t = 0
     for _ in range(epochs):
         for _ in range(num_batches):
-            choice = rng.integers(0, n, size=batch_size)
+            choice = rng.integers(0, N, size=batch_size)
             xb = _augment_batch(X[choice], rng)
             inputs = (torch.from_numpy(xb).float() / 255.0 - mean) / std
             targets = torch.from_numpy(y[choice])
@@ -270,8 +270,8 @@ def train_curves(args, device):
             r = run_one(seed, gamma, args.lr, args.epochs, args.batch_size,
                         X, y, device, max_iter=args.max_iter)
             runs.append(np.where(np.isfinite(r), r, DIVERGED))
-        L = min(len(r) for r in runs)
-        mean_loss = np.mean([r[:L] for r in runs], axis=0)
+        n_iter = min(len(r) for r in runs)
+        mean_loss = np.mean([r[:n_iter] for r in runs], axis=0)
         curves[gamma] = np.clip(np.nan_to_num(
             moving_ave2(mean_loss), nan=CLIP[1]), CLIP[0], CLIP[1])
     return curves

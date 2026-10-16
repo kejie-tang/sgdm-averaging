@@ -6,9 +6,9 @@ Setting
 Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10}.
 The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
 are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS``).  Otherwise the
-setup of Section 6.1: N = 20,000, d = 10, batch
+setup of Section 5.1: N = 20,000, d = 10, batch
 size B = 0.2 N, learning rate
-alpha = 0.001, K = 1500 iterations, 200 replications.  The momentum weight is
+alpha = 0.001, n = 1500 iterations, 200 replications.  The momentum weight is
 the *adaptive* weight gamma = ((1 - mu alpha)/(1 + mu alpha))^2 computed from
 each replication's mu; its averages over the 200 replications are about
 0.96, 0.95 and 0.93 for rho = 1, 5, 10.
@@ -64,9 +64,9 @@ KAPPA_LABELS = [3.5, 9.9, 14.7]
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
-    ap.add_argument("--K", type=int, default=1500)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--n", type=int, default=1500)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--batch_frac", type=float, default=0.2)
@@ -78,16 +78,16 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p, K = args.n, args.p, args.K
+    N, d, n = args.N, args.d, args.n
     n0 = args.n0
-    if n0 >= K:
-        raise ValueError(f"n0={n0} must be smaller than K={K}.")
-    batch_size = int(round(args.batch_frac * n))
+    if n0 >= n:
+        raise ValueError(f"n0={n0} must be smaller than n={n}.")
+    batch_size = int(round(args.batch_frac * N))
     rho_list = list(args.rho_list)
-    ave_len = K - n0 - 1
+    ave_len = n - n0 - 1
 
-    err_sgd = np.zeros((args.num_seed, K, len(rho_list)))
-    err_sgdm = np.zeros((args.num_seed, K, len(rho_list)))
+    err_sgd = np.zeros((args.num_seed, n, len(rho_list)))
+    err_sgdm = np.zeros((args.num_seed, n, len(rho_list)))
     ave_sgd = np.zeros((args.num_seed, ave_len, len(rho_list)))
     ave_sgdm = np.zeros((args.num_seed, ave_len, len(rho_list)))
     gamma_mean = np.zeros((args.num_seed, len(rho_list)))
@@ -102,9 +102,9 @@ def main():
         # from the same stream, so the data are identical across rho while the
         # schedule continues where the data left off.
         rng = np.random.RandomState(seed)
-        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        V, bi_r, u = draw_quadratic_problem(N, d, rng)
         # The mini-batch schedule depends only on the seed, not on rho.
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
         for j, rho in enumerate(rho_list):
             data = build_quadratic_data(V, bi_r, u, rho=rho, shift=10.0)
@@ -117,15 +117,15 @@ def main():
             # SGD and SGDM share the batches, so the batch gradients are formed
             # once per (replication, rho) and replayed by both methods.
             A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size,
-                                                   schedule, K)
+                                                   schedule, n)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                           args.alpha, K, A_seq=A_seq, b_seq=b_seq)
+                           args.alpha, n, A_seq=A_seq, b_seq=b_seq)
             err_sgd[seed, :, j] = last_iterate_errors(traj, x_star)
             ave_sgd[seed, :, j] = averaged_errors(traj, x_star, n0, ave_len)
 
             traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                              args.alpha, gamma, K, A_seq=A_seq, b_seq=b_seq)
+                              args.alpha, gamma, n, A_seq=A_seq, b_seq=b_seq)
             err_sgdm[seed, :, j] = last_iterate_errors(traj_m, x_star)
             ave_sgdm[seed, :, j] = averaged_errors(traj_m, x_star, n0, ave_len)
 
@@ -147,7 +147,7 @@ def main():
         # averaged ones after, so the two loops are separate.
         for j, rho in enumerate(rho_list):
             cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
-            ax.plot(np.arange(K), (err[:, :, j] ** 2).mean(axis=0),
+            ax.plot(np.arange(n), (err[:, :, j] ** 2).mean(axis=0),
                     label=rf"{last_label}-$L/\mu={cond:.1f}$",
                     marker=marker, markevery=0.3,
                     linestyle=":", color=colors[j])

@@ -6,17 +6,17 @@ Setting
 Quadratic loss, N = 20,000, d = 10, B = 0.2 N.
 The statistic (Eq. (def:z))
     Z = sqrt(B) / (sigma * sqrt(omega^T Sigma^{-1} Omega Sigma^{-1} omega))
-        * sum_{t=n0+1}^n omega^T (x_t - x^*) / sqrt(n - n0)
+        * sum_{t=n0+1}^{n} omega^T (x_t - x^*) / sqrt(n - n0)
 is asymptotically N(0, 1) by Corollary 3.
 
 Figure 8 : frequency of Z for averaged SGD and averaged SGDM, gamma = 0.9,
            n0 = 1000, n = 2000, over 1000 trials.
 Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
            and SGDM (gamma = 0.8, 0.9), over the grid alpha = 2^-11 ... 2^2,
-           with a trajectory of K = 500 iterations, a burn-in of n0 = 200 and
+           with a trajectory of n = 500 iterations, a burn-in of n0 = 200 and
            1000 trials per learning rate.
 
-           ``--K_cov 500 --n0_cov 200`` are the settings for this panel: the
+           ``--n_cov 500 --n0_cov 200`` are the settings for this panel: the
            transition of SGDM-0.9 falls between alpha = 2^-8 (~0.1) and
            alpha = 2^-7 (~0.9), and the plateau sits at ~0.98.  Note where the
            three curves fall back to zero: SGD between alpha = 2^-4 and 2^-3,
@@ -78,50 +78,50 @@ def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
     ap.add_argument("--num_seed", type=int, default=1000)
     ap.add_argument("--batch_frac", type=float, default=0.2)
-    # histogram experiment
-    ap.add_argument("--K_hist", type=int, default=2000)
+    # histogram experiment (Figure 8)
+    ap.add_argument("--n_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
     ap.add_argument("--gamma_hist", type=float, default=0.9)
-    # coverage experiment (Figure 12): a K = 500-iteration trajectory with a
+    # coverage experiment (Figure 12): an n = 500-iteration trajectory with a
     # burn-in of n0 = 200, averaged over 1000 trials per learning rate.
-    ap.add_argument("--K_cov", type=int, default=500)
+    ap.add_argument("--n_cov", type=int, default=500)
     ap.add_argument("--n0_cov", type=int, default=200)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
     # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
     ap.add_argument("--exps", type=int, nargs="+",
                     default=list(range(2, -12, -1)))
-    ap.add_argument("--betas", type=float, nargs="+", default=[0.8, 0.9])
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "clt"))
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p = args.n, args.p
-    batch_size = int(round(args.batch_frac * n))
+    N, d = args.N, args.d
+    batch_size = int(round(args.batch_frac * N))
 
     # --- shared problem instance for the histogram experiment ---
     # One seed-1 stream supplies the data, the starting point *and* the
     # projection direction, in the authors' order; the per-trial mini-batch
     # schedules are then drawn from their own per-trial streams below.
     rng = np.random.RandomState(1)
-    V = rng.rand(n, p, p)
-    Ai = np.empty((n, p, p))
-    for i in range(n):
+    V = rng.rand(N, d, d)
+    Ai = np.empty((N, d, d))
+    for i in range(N):
         Vi = V[i]
-        Ai[i] = Vi @ Vi.T + 10.0 * np.eye(p)
-    bi = rng.rand(n, p, 1)
+        Ai[i] = Vi @ Vi.T + 10.0 * np.eye(d)
+    bi = rng.rand(N, d, 1)
     A = Ai.mean(axis=0)
     b = bi.mean(axis=0)
     x_star = np.linalg.solve(A, -b)
-    noise = rng.rand(p, 1)
+    noise = rng.rand(d, 1)
     noise /= np.linalg.norm(noise)
     initial = x_star + noise * 0.1
-    phi = rng.rand(p, 1)
+    phi = rng.rand(d, 1)
     phi /= np.linalg.norm(phi)
     ev = np.linalg.eigvalsh(A)
     mu = float(ev.min())
@@ -134,18 +134,18 @@ def main():
     for seed in range(args.num_seed):
         if seed % 100 == 0:
             print(f"[clt-hist] seed {seed}/{args.num_seed}", flush=True)
-        schedule = make_batch_schedule(n, batch_size, args.K_hist, seed,
+        schedule = make_batch_schedule(N, batch_size, args.n_hist, seed,
                                        replace=True)
         # averaged SGD and averaged SGDM replay the same batches
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule,
-                                               args.K_hist)
+                                               args.n_hist)
         z_sgd[seed], _ = clt_projection(
             Ai, bi, x_star, initial, batch_size, schedule, alpha_hist,
-            args.K_hist, args.n0_hist, cov, gamma=0.0, phi=phi,
+            args.n_hist, args.n0_hist, cov, gamma=0.0, phi=phi,
             A_seq=A_seq, b_seq=b_seq)
         z_sgdm[seed], _ = clt_projection(
             Ai, bi, x_star, initial, batch_size, schedule, alpha_hist,
-            args.K_hist, args.n0_hist, cov, gamma=args.gamma_hist, phi=phi,
+            args.n_hist, args.n0_hist, cov, gamma=args.gamma_hist, phi=phi,
             A_seq=A_seq, b_seq=b_seq)
 
     print(f"[clt-hist] mean/std SGD  = {z_sgd.mean():.3f} / {z_sgd.std():.3f}")
@@ -157,57 +157,57 @@ def main():
 
     # --- coverage vs. learning rate (Figure 12) ---
     rng2 = np.random.RandomState(1)
-    V2 = rng2.rand(n, p, p)
-    Ai2 = np.empty((n, p, p))
-    for i in range(n):
+    V2 = rng2.rand(N, d, d)
+    Ai2 = np.empty((N, d, d))
+    for i in range(N):
         Vi = V2[i]
-        Ai2[i] = (Vi @ Vi.T + 1.03 * np.eye(p)) / 1.04
-    bi2 = rng2.rand(n, p, 1)
+        Ai2[i] = (Vi @ Vi.T + 1.03 * np.eye(d)) / 1.04
+    bi2 = rng2.rand(N, d, 1)
     A2 = Ai2.mean(axis=0)
     b2 = bi2.mean(axis=0)
     x_star2 = np.linalg.solve(A2, -b2)
-    noise2 = rng2.rand(p, 1)
+    noise2 = rng2.rand(d, 1)
     noise2 /= np.linalg.norm(noise2)
     initial2 = x_star2 + noise2 * 0.1
     cov2 = asymptotic_covariance(Ai2, bi2, x_star2, A2, batch_size)
 
     alphas = [2.0 ** e for e in args.exps]
-    n_a, n_b = len(alphas), len(args.betas)
-    cover_sgd = np.zeros((args.num_seed_cov, n_a))
-    cover_sgdm = np.zeros((args.num_seed_cov, n_b, n_a))
+    n_alphas, n_gammas = len(alphas), len(args.gammas)
+    cover_sgd = np.zeros((args.num_seed_cov, n_alphas))
+    cover_sgdm = np.zeros((args.num_seed_cov, n_gammas, n_alphas))
     z1_96 = 1.96
 
     for seed in range(args.num_seed_cov):
         if seed % 200 == 0:
             print(f"[clt-cov] seed {seed}/{args.num_seed_cov}", flush=True)
-        schedule = make_batch_schedule(n, batch_size, args.K_cov, seed,
+        schedule = make_batch_schedule(N, batch_size, args.n_cov, seed,
                                        replace=False)
         # Every (gamma, alpha) pair in the sweep replays the same batches, so
         # the batch gradients are formed once per trial.
         A_seq, b_seq = batch_gradient_sequence(Ai2, bi2, batch_size, schedule,
-                                               args.K_cov)
+                                               args.n_cov)
         for ai_, alpha in enumerate(alphas):
             z, phi_ = clt_projection(
                 Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
-                args.K_cov, args.n0_cov, cov2, gamma=0.0,
+                args.n_cov, args.n0_cov, cov2, gamma=0.0,
                 phi=None, seed=seed, A_seq=A_seq, b_seq=b_seq)
             cover_sgd[seed, ai_] = 1.0 if abs(z) <= z1_96 else 0.0
-            for bi_, beta in enumerate(args.betas):
+            for gi_, gamma in enumerate(args.gammas):
                 zb, _ = clt_projection(
                     Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
-                    args.K_cov, args.n0_cov, cov2, gamma=beta,
+                    args.n_cov, args.n0_cov, cov2, gamma=gamma,
                     phi=phi_, seed=seed, A_seq=A_seq, b_seq=b_seq)
-                cover_sgdm[seed, bi_, ai_] = 1.0 if abs(zb) <= z1_96 else 0.0
+                cover_sgdm[seed, gi_, ai_] = 1.0 if abs(zb) <= z1_96 else 0.0
 
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     ax.plot(args.exps, cover_sgd.mean(axis=0), label="SGD", marker=MARKERS[0],
             markevery=0.3, linestyle=LINESTYLES[0])
-    for bi_, beta in enumerate(args.betas):
-        ax.plot(args.exps, cover_sgdm[:, bi_, :].mean(axis=0),
-                label=f"SGDM-{beta}", marker=MARKERS[bi_ + 1],
-                markevery=0.3, linestyle=LINESTYLES[bi_ + 1])
+    for gi_, gamma in enumerate(args.gammas):
+        ax.plot(args.exps, cover_sgdm[:, gi_, :].mean(axis=0),
+                label=f"SGDM-{gamma}", marker=MARKERS[gi_ + 1],
+                markevery=0.3, linestyle=LINESTYLES[gi_ + 1])
     ax.axhline(y=0.95, color="black", linestyle="--")
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$P(|Z|<1.96)$")
@@ -225,7 +225,7 @@ def main():
     np.savez_compressed(os.path.join(args.out, "clt_raw.npz"),
                         z_sgd=z_sgd, z_sgdm=z_sgdm,
                         cover_sgd=cover_sgd, cover_sgdm=cover_sgdm,
-                        exps=np.array(args.exps), betas=np.array(args.betas))
+                        exps=np.array(args.exps), gammas=np.array(args.gammas))
     print(f"[clt] results saved to {os.path.abspath(args.out)}")
 
 

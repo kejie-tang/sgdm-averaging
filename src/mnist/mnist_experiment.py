@@ -97,9 +97,9 @@ def load_mnist(raw_dir, download=False):
 
     def resolve(base):
         for cand in (base, base + ".gz"):
-            p = os.path.join(raw_dir, cand)
-            if os.path.exists(p):
-                return p
+            d = os.path.join(raw_dir, cand)
+            if os.path.exists(d):
+                return d
         if download:
             for mirror in MIRRORS:
                 for suffix in (base, base + ".gz"):
@@ -148,15 +148,17 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device,
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    n = X.shape[0]
-    num_batches = n // batch_size
+    N = X.shape[0]
+    num_batches = N // batch_size
     Xt = torch.from_numpy(X.astype(np.float32) / 255.0)
     yt = torch.from_numpy(y)
 
     net = nn.Sequential(nn.Linear(784, 10)).to(device)
     criterion = nn.CrossEntropyLoss()
-    # The paper reports momentum weight beta and learning rate alpha; the
-    # equivalent PyTorch SGD uses lr = alpha * (1 - beta), momentum = beta.
+    # The paper's update m_t = gamma m_{t-1} + (1 - gamma) g_t is realised as
+    # PyTorch's SGD(lr = alpha * (1 - gamma), momentum = gamma): the optimiser
+    # multiplies its own momentum step by lr, so the product reproduces
+    # alpha * m_t.
     optimizer = optim.SGD(net.parameters(), lr=lr * (1 - gamma),
                           momentum=gamma)
 
@@ -164,7 +166,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device,
     for epoch in range(1, num_epochs + 1):
         net.train()
         for _ in range(num_batches):
-            choice = np.random.choice(n, batch_size, replace=False)
+            choice = np.random.choice(N, batch_size, replace=False)
             inputs = Xt[choice].to(device)
             targets = yt[choice].to(device)
             optimizer.zero_grad()
@@ -221,25 +223,25 @@ def main():
             runs.append(run_one(seed, gamma, args.lr, args.epochs,
                                 args.batch_size, X, y, device,
                                 max_iter=args.max_iter))
-        L = min(len(r) for r in runs)
+        n_iter = min(len(r) for r in runs)
         # Running mean of the loss over iterations 1..t (see the module
         # docstring); applied per run before averaging over the seeds.
-        ma_runs = [cumulative_mean(r[:L]) for r in runs]
+        ma_runs = [cumulative_mean(r[:n_iter]) for r in runs]
         curves[gamma] = np.mean(ma_runs, axis=0)
 
-    def plot(fname, betas, ylim, include_sgd, style):
+    def plot(fname, gammas, ylim, include_sgd, style):
         # The authors' canvas: 4 x 4 in, axes box at 0.1/0.9 by 0.2/0.9,
         # markevery=0.3, saved with bbox_inches="tight".
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
         j = 0
-        wanted = ([0.0] if include_sgd else []) + list(betas)
-        for beta in wanted:
-            if beta not in curves:
+        wanted = ([0.0] if include_sgd else []) + list(gammas)
+        for gamma in wanted:
+            if gamma not in curves:
                 continue
-            label = "SGD" if beta == 0.0 else f"SGDM-{beta}"
-            ax.plot(curves[beta], label=label, marker=style["markers"][j],
+            label = "SGD" if gamma == 0.0 else f"SGDM-{gamma}"
+            ax.plot(curves[gamma], label=label, marker=style["markers"][j],
                     markevery=0.3, markersize=6,
                     linestyle=style["linestyles"][j],
                     color=style["colors"][j])

@@ -11,26 +11,31 @@ gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
 evaluated at the full-batch minimizer x^* (average adaptive weight ~ 0.75).
 
+The features and the labels come from :func:`sgdm_core.generate_logistic_data`,
+whose docstring records that the authors draw the label with probability
+``1 - sigmoid(theta0^T a_i)`` rather than with ``sigmoid(theta0^T a_i)``; that
+is what produced the published panels and is what is used here.
+
 Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
 Panel (b) "large gamma": SGDM-adap, SGDM-0.8, SGDM-0.9 (no SGD curve, as in
 the published panels).
 
 The full-batch gradient descent used to locate x^* is the same procedure as in
-the paper (beta = 0, 10*K iterations, alpha = 0.5).
+the paper (gamma = 0, 10*n iterations, alpha = 0.5).
 
 Update rule
 -----------
 The authors' recursion is
 
-    g_t = beta g_{t-1} + (1 - beta) grad(x_t),   x_{t+1} = x_t - alpha g_t,
+    m_t = gamma m_{t-1} + (1 - gamma) grad(x_t),   x_{t+1} = x_t - alpha m_t,
 
-with the **first** momentum set to the raw mini-batch gradient, g_1 = grad(x_1),
-i.e. *without* the (1 - beta) factor.  Their notebook applies that special case
-to every beta (``if k == 0: gt = gradient(...)``).  It is not cosmetic.  The
-recursion is an AR(2) with roots of modulus sqrt(beta) once
-alpha(1 - beta) L is large, so for beta = 0.9 the iterates are only lightly
+with the **first** momentum set to the raw mini-batch gradient, m_1 = grad(x_1),
+i.e. *without* the (1 - gamma) factor.  Their notebook applies that special
+case to every gamma (``if k == 0: gt = gradient(...)``).  It is not cosmetic.
+The recursion is an AR(2) with roots of modulus sqrt(gamma) once
+alpha(1 - gamma) L is large, so for gamma = 0.9 the iterates are only lightly
 damped; a ten-times-larger first step is what excites the oscillation that
-dominates the published Figure EC.1(b).  With the (1 - beta) factor restored,
+dominates the published Figure EC.1(b).  With the (1 - gamma) factor restored,
 the gamma = 0.9 hump shrinks from ~8e-2 to ~1.8e-2 and moves from t = 28 to
 t = 40, and the EC.2(b) panel comes out qualitatively wrong (gamma = 0.9 ends up
 converging fastest instead of slowest).  This file therefore reproduces the
@@ -75,29 +80,30 @@ def sigmoid(z):
 
 
 def gradient(theta, X, y):
-    """Mean gradient of the negative log-likelihood; returns (p, 1)."""
+    """Mean gradient of the negative log-likelihood; returns (d, 1)."""
     theta = theta.reshape(-1)
-    m = y.size
+    n_obs = y.size
     h = sigmoid(X @ theta).reshape(-1)
     y = y.reshape(-1)
-    return ((X.T @ (h - y)) / m).reshape(-1, 1)
+    return ((X.T @ (h - y)) / n_obs).reshape(-1, 1)
 
 
 def hessian(theta, X, y):
-    m, p = X.shape
+    """Population Hessian of the negative log-likelihood; returns (d, d)."""
+    n_obs, d = X.shape
     theta = theta.reshape(-1)
     h = sigmoid(X @ theta).reshape(-1)
-    H = np.zeros((p, p))
-    for i in range(m):
-        ai = X[i].reshape(p, 1)
+    H = np.zeros((d, d))
+    for i in range(n_obs):
+        ai = X[i].reshape(d, 1)
         H += h[i] * (1 - h[i]) * (ai @ ai.T)
-    return H / m
+    return H / n_obs
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--batch_frac", type=float, default=0.2)
@@ -110,21 +116,22 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p = args.n, args.p
-    batch_size = int(round(args.batch_frac * n))
+    N, d = args.N, args.d
+    batch_size = int(round(args.batch_frac * N))
     ave_len = args.ave_len
-    K = max(args.n0_list) + ave_len + 1
+    n = max(args.n0_list) + ave_len + 1
 
-    # beta_set: SGD(0), fixed weights, adaptive (index 4), 0.8, 0.9
-    beta_set = [0.0, 0.3, 0.5, 0.7, None, 0.8, 0.9]
-    n_beta = len(beta_set)
-    beta_fixed_small = [0.3, 0.5, 0.7]
-    beta_fixed_large = [0.8, 0.9]
+    # gamma_set: SGD (0), the fixed weights of panel (a), the adaptive weight
+    # of the paper (None is replaced per replication), then panel (b)'s 0.8
+    # and 0.9.  The ordering is the authors' and fixes the column layout of
+    # err_last / err_ave.
+    gamma_set = [0.0, 0.3, 0.5, 0.7, None, 0.8, 0.9]
+    n_gammas = len(gamma_set)
 
     # last-iterate error (Figure EC.1) and averaged error per n0 (Figures EC.2-EC.3)
     # err_last[k] is ||x_k - x^*||, so entry 0 is the initial point x_0.
-    err_last = np.zeros((args.num_seed, K, n_beta))
-    err_ave = {n0: np.zeros((args.num_seed, ave_len - 1, n_beta))
+    err_last = np.zeros((args.num_seed, n, n_gammas))
+    err_ave = {n0: np.zeros((args.num_seed, ave_len - 1, n_gammas))
                for n0 in args.n0_list}
     gamma_mean = np.zeros(args.num_seed)
 
@@ -135,13 +142,13 @@ def main():
         # authors' notebook: the features, the labels and the mini-batch
         # index sequence are drawn from the same ``np.random`` stream.
         rng = np.random.RandomState(seed)
-        X, y, theta0 = generate_logistic_data(n, p, seed, rng=rng)
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        X, y, theta0 = generate_logistic_data(N, d, seed, rng=rng)
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
 
         # ---- full-batch GD to locate the minimizer x^* ----
-        theta = np.zeros((p, 1))
-        for _ in range(10 * K):
+        theta = np.zeros((d, 1))
+        for _ in range(10 * n):
             theta = theta - args.alpha * gradient(theta, X, y)
         x_star = theta
 
@@ -151,14 +158,17 @@ def main():
         gamma = ((1 - mu * args.alpha) / (1 + mu * args.alpha)) ** 2
         gamma_mean[seed] = gamma
 
-        betas = [gamma if b is None else b for b in beta_set]
-        initial = np.zeros((p, 1))  # paper starts from theta = 0
+        # Slot 4 of gamma_set is ``None``: fill it with this replication's
+        # adaptive weight, so that column 4 is SGDM-adap throughout.
+        gammas = list(gamma_set)
+        gammas[4] = gamma
+        initial = np.zeros((d, 1))  # paper starts from theta = 0
 
-        for j, beta in enumerate(betas):
+        for j, gamma_j in enumerate(gammas):
             x = initial.copy()
-            m = np.zeros((p, 1))
-            runs = {n0: np.zeros((p, 1)) for n0 in args.n0_list}
-            for k in range(K):
+            m = np.zeros((d, 1))
+            runs = {n0: np.zeros((d, 1)) for n0 in args.n0_list}
+            for k in range(n):
                 idx = schedule[k * batch_size:(k + 1) * batch_size]
                 xi, yi = X[idx], y[idx]
                 # Record the current iterate x_k *before* updating it, so that
@@ -167,10 +177,10 @@ def main():
                 err_last[seed, k, j] = np.linalg.norm(x - x_star)
                 g = gradient(x, xi, yi)
                 # The authors' recursion, verbatim:
-                #     g_t = beta * g_{t-1} + (1 - beta) * grad(x_t)
+                #     m_t = gamma * m_{t-1} + (1 - gamma) * grad(x_t)
                 # with the *first* momentum set to the raw mini-batch gradient,
-                # g_1 = grad(x_1), without the (1 - beta) factor.  The special
-                # case is not cosmetic: for beta = 0.9 it makes the first step
+                # m_1 = grad(x_1), without the (1 - gamma) factor.  The
+                # special case is not cosmetic: for gamma = 0.9 it makes the first step
                 # ten times larger, which is what excites the underdamped
                 # oscillation that dominates Figure EC.1(b) (the gamma = 0.9
                 # curve dips to ~1e-2 near t = 15 and then rises to a ~8e-2
@@ -178,7 +188,7 @@ def main():
                 if k == 0:
                     m = g
                 else:
-                    m = beta * m + (1 - beta) * g
+                    m = gamma_j * m + (1 - gamma_j) * g
                 x = x - args.alpha * m
                 for n0 in args.n0_list:
                     # ``x`` has already been updated, so at iteration k it
@@ -211,7 +221,7 @@ def main():
                    ("#ff7f0e", "P", "-.")]   # SGDM-0.9   C1, markers[4], ls[3]
 
     def plot_single(fname, curve, idxs, styles, ylab, ylim):
-        """curve: (num_seed, T, n_beta); idxs: column indices, in legend order."""
+        """curve: (num_seed, T, n_gammas); idxs: column indices, in legend order."""
         fig = plt.figure(figsize=(4, 4), dpi=150)
         # The geometry of the authors' plotting cells.  It matters visually:
         # a float ``markevery`` places markers every ``markevery``-th fraction

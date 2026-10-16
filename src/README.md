@@ -19,6 +19,22 @@ One sub-directory per group of figures. All scripts import the shared module
 
 `../scripts/run_all.sh` runs everything (`FAST=1` for a reduced-fidelity pass).
 
+## Symbols
+
+Identifiers follow the paper: `N` is the training-set size, `d` the dimension
+of `x`, `B` the mini-batch size, `n` the number of iterations, `n0` the
+averaging burn-in, `alpha` the learning rate and `gamma` the momentum weight
+(`gamma = 0` is SGD). The full table is in `../README.md` (Section 6.1), and
+`sgdm_core.py`'s module docstring repeats it next to the update rule it belongs
+to.
+
+Two conventions are easy to get wrong and are spelled out where they bite:
+
+* trajectories are **zero-based** -- `traj[k]` is the paper's `x_{k+1}`, so
+  `traj[0]` is the initial point `x_1`;
+* an `alpha` (or `gamma`) argument that is a *sequence* is read per iteration,
+  which is how Figure 7's decaying learning rate is expressed.
+
 ## The shared module `sgdm_core.py`
 
 Every script imports the data generators, the iterates and the derived
@@ -27,11 +43,11 @@ experiments:
 
 | Function | Purpose |
 |---|---|
-| `draw_quadratic_problem` | the raw draws `V = rand(n, p, p)`, `b_i = rand(n, p, 1)`, `u = rand(p, 1)` from a caller-owned `rng` |
+| `draw_quadratic_problem` | the raw draws `V = rand(N, d, d)`, `b_i = rand(N, d, 1)`, `u = rand(d, 1)` from a caller-owned `rng` |
 | `build_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
 | `generate_quadratic_data` | `draw_quadratic_problem` + `build_quadratic_data` in one call (kept for convenience; `rng=` passthrough supported) |
 | `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)`; accepts a caller-owned `rng` so the features, labels and batches can be drawn from one stream |
-| `make_batch_schedule` | the pre-sampled index sequence shared by SGD and SGDM; accepts the same optional `rng` |
+| `make_batch_schedule` | the pre-sampled index sequence of length `n * batch_size`, shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
 | `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
 | `averaged_errors` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` starts at `x_{n0+1}`, matching `xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j` |

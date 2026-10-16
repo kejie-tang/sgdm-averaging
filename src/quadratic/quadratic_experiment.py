@@ -5,7 +5,7 @@ quadratic loss.
 Setting
 -------
 N = 20,000, d = 10, rho = 1 (so that the average condition number is 35/10),
-batch size B = 0.2 N, learning rate alpha = 0.001, K = 1500 iterations,
+batch size B = 0.2 N, learning rate alpha = 0.001, n = 1500 iterations,
 200 independent replications.  The adaptive momentum weight is
 gamma = ((1 - mu*alpha)/(1 + mu*alpha))^2, averaged value ~ 0.96.
 
@@ -81,9 +81,9 @@ def _canvas(figsize=FIGSIZE):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
-    ap.add_argument("--K", type=int, default=1500)
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--n", type=int, default=1500)
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--batch_frac", type=float, default=0.2)
@@ -94,33 +94,34 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p, K = args.n, args.p, args.K
-    batch_size = int(round(args.batch_frac * n))
+    N, d, n = args.N, args.d, args.n
+    batch_size = int(round(args.batch_frac * N))
     n0_list = sorted(set(args.n0_list) | {FIG3_N0})
     for n0 in n0_list:
-        if n0 + 1 >= K:
-            raise ValueError(f"n0={n0} must be smaller than K={K}.")
+        if n0 + 1 >= n:
+            raise ValueError(f"n0={n0} must be smaller than n={n}.")
     # The averaged curves run to the end of the trajectory, exactly as in the
-    # published panels: xbar_{n0+t} for t = 1, ..., K - n0 - 1 (the last
-    # iterate that can be averaged in is x_{K-1}).
-    ave_len = {n0: K - n0 - 1 for n0 in n0_list}
+    # published panels: xbar_{n0+t} for t = 1, ..., n - n0 - 1 (the last
+    # iterate that can be averaged in is x_{n-1}).
+    ave_len = {n0: n - n0 - 1 for n0 in n0_list}
 
-    # beta_set: fixed small / large momentum weights + adaptive (last slot).
+    # The two fixed momentum weight sets of Figure 2, plus the adaptive
+    # weight gamma = ((1 - mu alpha)/(1 + mu alpha))^2 in the last slot.
     # The paper's "large gamma" panels use gamma = 0.97, 0.98, 0.99.
-    beta_fixed_small = [0.5, 0.7, 0.9]
-    beta_fixed_large = [0.97, 0.98, 0.99]
+    gamma_fixed_small = [0.5, 0.7, 0.9]
+    gamma_fixed_large = [0.97, 0.98, 0.99]
 
-    err_sgd = np.zeros((args.num_seed, K))
-    err_m_small = np.zeros((args.num_seed, K, len(beta_fixed_small) + 1))
-    err_m_large = np.zeros((args.num_seed, K, len(beta_fixed_large) + 1))
-    err_m_fig4 = np.zeros((args.num_seed, K))
+    err_sgd = np.zeros((args.num_seed, n))
+    err_m_small = np.zeros((args.num_seed, n, len(gamma_fixed_small) + 1))
+    err_m_large = np.zeros((args.num_seed, n, len(gamma_fixed_large) + 1))
+    err_m_fig4 = np.zeros((args.num_seed, n))
     ave_sgd = {n0: np.zeros((args.num_seed, ave_len[n0]))
                for n0 in n0_list}
     ave_m_small = {n0: np.zeros((args.num_seed, ave_len[n0],
-                                 len(beta_fixed_small) + 1))
+                                 len(gamma_fixed_small) + 1))
                    for n0 in n0_list}
     ave_m_large = {n0: np.zeros((args.num_seed, ave_len[n0],
-                                 len(beta_fixed_large) + 1))
+                                 len(gamma_fixed_large) + 1))
                    for n0 in n0_list}
     ave_m_fig4 = {n0: np.zeros((args.num_seed, ave_len[n0]))
                   for n0 in n0_list}
@@ -135,32 +136,32 @@ def main():
         # freshly seeded stream instead -- as an earlier version of this script
         # did -- gives a statistically equivalent but different realisation.)
         rng = np.random.RandomState(seed)
-        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        V, bi_r, u = draw_quadratic_problem(N, d, rng)
         data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
         Ai, bi, x_star, mu, initial = (data["Ai"], data["bi"], data["x_star"],
                                        data["mu"], data["initial"])
         gamma = adaptive_gamma(mu, args.alpha)
         gamma_mean[seed] = gamma
 
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
         # Every (gamma, alpha) pair replays the same mini-batches, so the batch
         # gradients are formed once per replication instead of once per sweep
         # entry.  The iterates are unchanged.
-        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
+        A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
 
         traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
-                       args.alpha, K, A_seq=A_seq, b_seq=b_seq)
+                       args.alpha, n, A_seq=A_seq, b_seq=b_seq)
         err_sgd[seed] = last_iterate_errors(traj, x_star)
         for n0 in n0_list:
             ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, ave_len[n0])
 
-        for betas, err_store, ave_store in (
-                (beta_fixed_small, err_m_small, ave_m_small),
-                (beta_fixed_large, err_m_large, ave_m_large)):
-            for j, beta in enumerate(betas + [gamma]):
+        for gammas_fixed, err_store, ave_store in (
+                (gamma_fixed_small, err_m_small, ave_m_small),
+                (gamma_fixed_large, err_m_large, ave_m_large)):
+            for j, gamma_fixed in enumerate(gammas_fixed + [gamma]):
                 traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size,
-                                  schedule, args.alpha, beta, K,
+                                  schedule, args.alpha, gamma_fixed, n,
                                   A_seq=A_seq, b_seq=b_seq)
                 err_store[seed, :, j] = last_iterate_errors(traj_m, x_star)
                 for n0 in n0_list:
@@ -169,7 +170,7 @@ def main():
 
         # SGDM with the fixed weight 0.96 used by Figure 4
         traj_96 = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                           args.alpha, GAMMA_FIG4, K, A_seq=A_seq, b_seq=b_seq)
+                           args.alpha, GAMMA_FIG4, n, A_seq=A_seq, b_seq=b_seq)
         err_m_fig4[seed] = last_iterate_errors(traj_96, x_star)
         for n0 in n0_list:
             ave_m_fig4[n0][seed] = averaged_errors(traj_96, x_star, n0,
@@ -208,23 +209,24 @@ def main():
     #   (a) small gamma : SGD, SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-adap
     #   (b) large gamma : SGDM-adap, SGDM-0.97, SGDM-0.98, SGDM-0.99
     # ------------------------------------------------------------------ #
-    def _legend_order(betas):
-        if betas is beta_fixed_large:
-            return [("adap", True)] + [(b, False) for b in betas]
-        return [("sgd", False)] + [(b, False) for b in betas] + [("adap", True)]
+    def _legend_order(gammas_fixed):
+        if gammas_fixed is gamma_fixed_large:
+            return [("adap", True)] + [(g, False) for g in gammas_fixed]
+        return [("sgd", False)] + [(g, False) for g in gammas_fixed] \
+            + [("adap", True)]
 
-    def plot_last_iterate(betas, err_m, fname):
+    def plot_last_iterate(gammas_fixed, err_m, fname):
         fig, ax = _canvas()
-        for key, is_adap in _legend_order(betas):
+        for key, is_adap in _legend_order(gammas_fixed):
             if key == "sgd":
                 y, lab = (err_sgd ** 2).mean(axis=0), "SGD"
             elif is_adap:
                 y = (err_m[:, :, -1] ** 2).mean(axis=0)
                 lab = "SGDM-adap"
             else:
-                y = (err_m[:, :, betas.index(key)] ** 2).mean(axis=0)
+                y = (err_m[:, :, gammas_fixed.index(key)] ** 2).mean(axis=0)
                 lab = f"SGDM-{key}"
-            ax.plot(np.arange(K), y, label=lab, markevery=0.3, **STYLE[lab])
+            ax.plot(np.arange(n), y, label=lab, markevery=0.3, **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||x_t-x^*||^2$")
         ax.set_yscale("log")
@@ -234,8 +236,8 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    plot_last_iterate(beta_fixed_small, err_m_small, "fig_linear_small.png")
-    plot_last_iterate(beta_fixed_large, err_m_large, "fig_linear_large.png")
+    plot_last_iterate(gamma_fixed_small, err_m_small, "fig_linear_small.png")
+    plot_last_iterate(gamma_fixed_large, err_m_large, "fig_linear_large.png")
 
     # ------------------------------------------------------------------ #
     # Figure 3: averaged SGD / SGDM with n0 = 500 (one pair of panels).
@@ -298,9 +300,9 @@ def main():
     def plot_compare(n0, fname):
         fig, ax = _canvas()
         # Figure 4 draws SGD in blue (Figures 2-3 use the purple of STYLE).
-        ax.plot(np.arange(K), (err_sgd ** 2).mean(axis=0), label="SGD",
+        ax.plot(np.arange(n), (err_sgd ** 2).mean(axis=0), label="SGD",
                 markevery=0.3, **dict(STYLE["SGD"], color="#1f77b4"))
-        ax.plot(np.arange(K), (err_m_fig4 ** 2).mean(axis=0), label="SGDM-0.96",
+        ax.plot(np.arange(n), (err_m_fig4 ** 2).mean(axis=0), label="SGDM-0.96",
                 markevery=0.3, **STYLE["SGDM-0.96"])
         xa = np.arange(n0 + 1, n0 + 1 + ave_sgd[n0].shape[1])
         ax.plot(xa, (ave_sgd[n0] ** 2).mean(axis=0), label="Ave-SGD",
@@ -321,8 +323,8 @@ def main():
     arrays = dict(
         err_sgd=err_sgd, err_m_small=err_m_small, err_m_large=err_m_large,
         err_m_fig4=err_m_fig4, gamma_mean=gamma_mean,
-        beta_small=np.array(beta_fixed_small),
-        beta_large=np.array(beta_fixed_large))
+        gamma_small=np.array(gamma_fixed_small),
+        gamma_large=np.array(gamma_fixed_large))
     for n0 in n0_list:
         arrays[f"ave_sgd_{n0}"] = ave_sgd[n0]
         arrays[f"ave_m_small_{n0}"] = ave_m_small[n0]

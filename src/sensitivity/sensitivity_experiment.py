@@ -71,34 +71,34 @@ def _cap(v):
     return v if np.isfinite(v) and v <= DIVERGED_CAP else DIVERGED_CAP
 
 
-def _run_grid(A_seq, b_seq, x_star, initial, alphas, gammas, K, T, n0):
+def _run_grid(A_seq, b_seq, x_star, initial, alphas, gammas, n, T, n0):
     """Run every (gamma, alpha) pair on a shared batch-gradient sequence.
 
     Returns ``last``, ``ave``, ``final`` dictionaries keyed by ``(gamma, alpha)``
     holding, respectively, the squared last-iterate error for t = 0..T, the
-    squared averaged error for t = 1..K-n0, and the squared error at index T.
+    squared averaged error for t = 1..n-n0, and the squared error at index T.
     """
-    p = initial.shape[0]
+    d = initial.shape[0]
     last, ave, final = {}, {}, {}
     for gamma in gammas:
         for alpha in alphas:
             x = initial.copy()
-            m = np.zeros((p, 1))
+            m = np.zeros((d, 1))
             err_t = np.empty(T + 1)
-            run = np.zeros((p, 1))
+            run = np.zeros((d, 1))
             cnt = 0
             ave_curve = []
             # Large learning rates make the iterates overflow before the
             # horizon; the resulting inf/nan are handled (and capped) below.
-            for k in range(K):
+            for k in range(n):
                 if k <= T:
-                    d = x - x_star
-                    err_t[k] = float(np.sum(d * d))
+                    diff = x - x_star
+                    err_t[k] = float(np.sum(diff * diff))
                 if n0 <= k:                     # x_{k+1} is averaged from here
                     run = run + x
                     cnt += 1
-                    d = run / cnt - x_star
-                    ave_curve.append(float(np.sum(d * d)))
+                    diff = run / cnt - x_star
+                    ave_curve.append(float(np.sum(diff * diff)))
                 g = A_seq[k] @ x + b_seq[k]
                 if gamma == 0.0:
                     x = x - alpha * g
@@ -114,9 +114,9 @@ def _run_grid(A_seq, b_seq, x_star, initial, alphas, gammas, K, T, n0):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20000)
-    ap.add_argument("--p", type=int, default=10)
-    ap.add_argument("--K", type=int, default=1000,
+    ap.add_argument("--N", type=int, default=20000)
+    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--n", type=int, default=1000,
                     help="number of iterations per run (>= n0 + 500 for "
                          "Figure 11 and >= T + 1 for Figures 9-10)")
     ap.add_argument("--T", type=int, default=500,
@@ -125,66 +125,66 @@ def main():
                     help="averaging burn-in for Figure 11")
     ap.add_argument("--num_seed", type=int, default=200)
     ap.add_argument("--batch_frac", type=float, default=0.2)
-    ap.add_argument("--betas", type=float, nargs="+", default=[0.8, 0.9])
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "sensitivity"))
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    n, p, K, T, n0 = args.n, args.p, args.K, args.T, args.n0
-    batch_size = int(round(args.batch_frac * n))
+    N, d, n, T, n0 = args.N, args.d, args.n, args.T, args.n0
+    batch_size = int(round(args.batch_frac * N))
     final_alphas = [2.0 ** e for e in FINAL_EXPS]
-    n_a = len(final_alphas)
-    n_b = len(args.betas)
-    if args.n0 + T > K:
+    n_alphas = len(final_alphas)
+    n_gammas = len(args.gammas)
+    if args.n0 + T > n:
         raise ValueError(
-            f"--K={K} is too small: the averaged curve needs n0 + T = "
-            f"{args.n0 + T} iterations.  Increase --K.")
-    if args.T + 1 > K:
-        raise ValueError(f"--T={T} must be smaller than --K={K}.")
+            f"--n={n} is too small: the averaged curve needs n0 + T = "
+            f"{args.n0 + T} iterations.  Increase --n.")
+    if args.T + 1 > n:
+        raise ValueError(f"--T={T} must be smaller than --n={n}.")
 
-    gamma_all = [0.0] + list(args.betas)
-    betas0 = args.betas[0]
+    gamma_all = [0.0] + list(args.gammas)
+    gamma_sgdm = args.gammas[0]          # the single weight of the SGDM panels
 
     # squared error at index T, per replication
-    err_sgd = np.zeros((args.num_seed, n_a))
-    err_sgdm = np.zeros((args.num_seed, n_b, n_a))
+    err_sgd = np.zeros((args.num_seed, n_alphas))
+    err_sgdm = np.zeros((args.num_seed, n_gammas, n_alphas))
     # last-iterate and averaged curves, only for the panel exponents
     last_sgd = np.zeros((args.num_seed, T + 1, len(SGD_CURVE_EXPS)))
     last_sgdm = np.zeros((args.num_seed, T + 1, len(SGDM_CURVE_EXPS)))
-    ave_sgd = np.zeros((args.num_seed, K - n0, len(SGD_CURVE_EXPS)))
-    ave_sgdm = np.zeros((args.num_seed, K - n0, len(SGDM_CURVE_EXPS)))
+    ave_sgd = np.zeros((args.num_seed, n - n0, len(SGD_CURVE_EXPS)))
+    ave_sgdm = np.zeros((args.num_seed, n - n0, len(SGDM_CURVE_EXPS)))
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[sensitivity] seed {seed}/{args.num_seed}", flush=True)
         rng = np.random.RandomState(seed)
-        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        V, bi_r, u = draw_quadratic_problem(N, d, rng)
         data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=1.03,
                                     norm_const=1.04)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+        schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
                                        rng=rng)
 
         # Pre-compute the per-iteration batch gradients once (shared by all
         # (gamma, alpha) pairs, since the mini-batches do not depend on them).
-        A_seq = np.empty((K, p, p))
-        b_seq = np.empty((K, p, 1))
-        for k in range(K):
+        A_seq = np.empty((n, d, d))
+        b_seq = np.empty((n, d, 1))
+        for k in range(n):
             idx = schedule[k * batch_size:(k + 1) * batch_size]
             A_seq[k] = Ai[idx].mean(axis=0)
             b_seq[k] = bi[idx].mean(axis=0)
 
         with np.errstate(over="ignore", invalid="ignore"):
             last, ave, final = _run_grid(A_seq, b_seq, x_star, initial,
-                                         final_alphas, gamma_all, K, T, n0)
+                                         final_alphas, gamma_all, n, T, n0)
 
         for ai_, alpha in enumerate(final_alphas):
             err_sgd[seed, ai_] = _cap(final[(0.0, alpha)])
-            for bi_, beta in enumerate(args.betas):
-                err_sgdm[seed, bi_, ai_] = _cap(final[(beta, alpha)])
+            for gi_, gamma in enumerate(args.gammas):
+                err_sgdm[seed, gi_, ai_] = _cap(final[(gamma, alpha)])
 
         for ai_, e in enumerate(SGD_CURVE_EXPS):
             alpha = 2.0 ** e
@@ -192,8 +192,8 @@ def main():
             ave_sgd[seed, :, ai_] = ave[(0.0, alpha)]
         for ai_, e in enumerate(SGDM_CURVE_EXPS):
             alpha = 2.0 ** e
-            last_sgdm[seed, :, ai_] = last[(betas0, alpha)]
-            ave_sgdm[seed, :, ai_] = ave[(betas0, alpha)]
+            last_sgdm[seed, :, ai_] = last[(gamma_sgdm, alpha)]
+            ave_sgdm[seed, :, ai_] = ave[(gamma_sgdm, alpha)]
 
     # ---- Figure 9: last iterate under different learning rates ----
     # Two panels on the authors' 8 x 4 inch canvas, each with the 0.1/0.9 by
@@ -235,11 +235,11 @@ def main():
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     ax.plot(FINAL_EXPS, err_sgd.mean(axis=0), label="SGD",
             marker="o", markevery=0.3, linestyle="--", color=COLORS[0])
-    for bi_, beta in enumerate(args.betas):
-        ax.plot(FINAL_EXPS, err_sgdm[:, bi_, :].mean(axis=0),
-                label=rf"SGDM-{beta}", marker=("v", "s")[bi_],
-                markevery=0.3, linestyle=("-", "--")[bi_],
-                color=COLORS[bi_ + 1])
+    for gi_, gamma in enumerate(args.gammas):
+        ax.plot(FINAL_EXPS, err_sgdm[:, gi_, :].mean(axis=0),
+                label=rf"SGDM-{gamma}", marker=("v", "s")[gi_],
+                markevery=0.3, linestyle=("-", "--")[gi_],
+                color=COLORS[gi_ + 1])
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$\|x_T-x^*\|^2$")
     ax.set_yscale("log")
@@ -252,7 +252,7 @@ def main():
     plt.close(fig)
 
     # ---- Figure 11: averaged iterate under different learning rates ----
-    t_ave = np.arange(1, K - n0 + 1)
+    t_ave = np.arange(1, n - n0 + 1)
     fig = plt.figure(figsize=(8, 4), dpi=150)
     spec = gridspec.GridSpec(1, 2, left=0.1, right=0.9, top=0.9,
                              bottom=0.2, figure=fig)
@@ -265,7 +265,7 @@ def main():
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$\|\bar{x}_{n_0+t}-x^*\|^2$")
     ax.set_yscale("log")
-    ax.set_xlim([0, K - n0])
+    ax.set_xlim([0, n - n0])
     ax.set_ylim([7e-8, 1e-4])
     ax.legend(fontsize=9)
     ax = fig.add_subplot(spec[1])
@@ -276,7 +276,7 @@ def main():
                 linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_yscale("log")
-    ax.set_xlim([0, K - n0])
+    ax.set_xlim([0, n - n0])
     ax.set_ylim([7e-8, 1e-4])
     ax.legend(fontsize=9)
     fig.savefig(os.path.join(args.out, "fig_ave_alpha.png"),
@@ -290,7 +290,7 @@ def main():
                         final_exps=np.array(FINAL_EXPS),
                         sgd_curve_exps=np.array(SGD_CURVE_EXPS),
                         sgdm_curve_exps=np.array(SGDM_CURVE_EXPS),
-                        betas=np.array(args.betas), T=T, n0=n0, K=K)
+                        gammas=np.array(args.gammas), T=T, n0=n0, n=n)
     print(f"[sensitivity] results saved to {os.path.abspath(args.out)}")
 
 

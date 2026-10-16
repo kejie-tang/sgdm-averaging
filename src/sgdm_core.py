@@ -13,14 +13,36 @@ weight, asymptotic covariance matrix) that are reused across the experiment
 scripts.  Keeping them in one place guarantees that every experiment uses
 *exactly* the same conventions as the paper.
 
+Notation
+--------
+The identifiers below are the paper's symbols with the paper's meaning, so that
+a line of code can be read against the text directly:
+
+    paper                    code                     meaning
+    -----------------------------------------------------------------------
+    N                        ``N``                    training-set size
+    d                        ``d``                    dimension of x
+    B                        ``batch_size``           mini-batch size
+    n                        ``n``                    number of iterations
+    n0                       ``n0``                   averaging burn-in
+    alpha                    ``alpha``                learning rate
+    gamma                    ``gamma``                momentum weight
+    Sigma / A                ``A``                    population Hessian E[A_i]
+    A_i, b_i                 ``Ai``, ``bi``           per-sample loss parameters
+    x*                       ``x_star``               minimizer of the risk
+    mu, L                    ``mu``, ``L``            smallest/largest eigenvalue
+    x_t                      ``traj[t]``              last iterate at time t
+    xbar_{n0+t}              ``averaged_errors(...)`` Polyak-averaged iterate
+    Z                        ``clt_projection(...)`` projected CLT statistic
+
 Conventions
 -----------
 Quadratic loss (Eq. (eq:quadratic) of the paper):
-    f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i^T V_i + c * I_d
+    f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i^T V_i + shift * I_d
 with x^* = -(mean_i A_i)^{-1} (mean_i b_i).
 
 SGDM update (Eq. (sgdm) of the paper) with momentum weight gamma:
-    m_t = gamma * m_{t-1} + (1 - gamma) g_{eta_t}(x_t)
+    m_t = gamma * m_{t-1} + (1 - gamma) g_eta_t(x_t)
     x_{t+1} = x_t - alpha * m_t
 SGD is the special case gamma = 0.
 
@@ -30,6 +52,13 @@ Polyak (averaged) iterate (Eq. (def:ave) of the paper):
 The adaptive momentum weight (Eq. (gammaset) of the paper) is
     gamma = ((1 - mu*alpha) / (1 + mu*alpha))**2
 where mu is the smallest eigenvalue of the population Hessian A = E[A_i].
+
+Indexing
+--------
+``traj`` is zero-based: ``traj[k]`` is the paper's x_{k+1}, so ``traj[0]`` is
+the initial point x_1.  The last-iterate panels plot ``traj[0:n]`` on a
+``t = 0, ..., n-1`` axis, which is the initial point followed by the first
+``n - 1`` updates.
 """
 
 from __future__ import annotations
@@ -40,10 +69,10 @@ import numpy as np
 # --------------------------------------------------------------------------- #
 # Data generation
 # --------------------------------------------------------------------------- #
-def draw_quadratic_problem(n, p, rng):
-    """Draw the raw random tensors of the Section 6.1 problem, in the authors'
-    order: ``V`` (n, p, p), then ``b_i`` (n, p, 1), then the noise direction
-    ``u`` (p, 1) of the starting point.
+def draw_quadratic_problem(N, d, rng):
+    """Draw the raw random tensors of the Section 5.1 problem, in the authors'
+    order: ``V`` (N, d, d), then ``b_i`` (N, d, 1), then the noise direction
+    ``u`` (d, 1) of the starting point.
 
     The authors' notebooks take all three from one unbroken ``np.random``
     stream and then go on drawing the mini-batch indices from the *same*
@@ -51,9 +80,9 @@ def draw_quadratic_problem(n, p, rng):
     share that single stream with :func:`make_batch_schedule`; see
     :func:`generate_quadratic_data`.
     """
-    V = rng.rand(n, p, p)
-    bi = rng.rand(n, p, 1)
-    u = rng.rand(p, 1)
+    V = rng.rand(N, d, d)
+    bi = rng.rand(N, d, 1)
+    u = rng.rand(d, 1)
     return V, bi, u
 
 
@@ -63,39 +92,39 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
 
     Parameters
     ----------
-    V : (n, p, p) array
+    V : (N, d, d) array
         The draws that form the individual Hessians.
-    bi : (n, p, 1) array
+    bi : (N, d, 1) array
         The draws that form the individual linear terms.
-    u : (p, 1) array
+    u : (d, 1) array
         The unnormalised direction of the initial perturbation.
     rho : float
         Scale of the low-rank part of A_i, controls the condition number L/mu.
     shift : float
         Ridge added to each A_i (``+shift * I``).  With rho=1, shift=10 the
-        average condition number is L/mu = 35/10, matching Section 6.1.
+        average condition number is L/mu = 35/10, matching Section 5.1.
     norm_const : float or None
         If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
-        before forming A, b and x^*.  The sensitivity experiment (Section 6.2)
+        before forming A, b and x^*.  The sensitivity experiment (Section 5.2)
         uses ``rho=1, shift=1.03, norm_const=1.04``, i.e. the authors'
         ``(V_i^T V_i + 1.03 I)/1.04``.
 
     Returns
     -------
     dict with keys:
-        Ai : (n, p, p) individual Hessians
-        bi : (n, p, 1) individual linear terms
-        A  : (p, p)    population Hessian (mean of Ai)
-        b  : (p, 1)    population linear term (mean of bi)
-        x_star : (p, 1) minimizer of the population risk
+        Ai : (N, d, d) individual Hessians
+        bi : (N, d, 1) individual linear terms
+        A  : (d, d)    population Hessian (mean of Ai)
+        b  : (d, 1)    population linear term (mean of bi)
+        x_star : (d, 1) minimizer of the population risk
         mu, L  : smallest / largest eigenvalue of A
-        initial : (p, 1) starting point x_1 (x^* plus a small perturbation)
+        initial : (d, 1) starting point x_1 (x^* plus a small perturbation)
     """
-    n, p = V.shape[0], V.shape[1]
-    Ai = np.empty((n, p, p))
-    for i in range(n):
+    N, d = V.shape[0], V.shape[1]
+    Ai = np.empty((N, d, d))
+    for i in range(N):
         Vi = V[i]
-        Ai[i] = rho * (Vi @ Vi.T) + shift * np.eye(p)
+        Ai[i] = rho * (Vi @ Vi.T) + shift * np.eye(d)
     if norm_const is not None:
         Ai = Ai / float(norm_const)
 
@@ -112,9 +141,9 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
                 mu=mu, L=L, initial=initial)
 
 
-def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None,
+def generate_quadratic_data(N, d, seed, rho=1.0, shift=10.0, norm_const=None,
                             rng=None):
-    """Generate a quadratic-loss problem as in Section 6.1 of the paper.
+    """Generate a quadratic-loss problem as in Section 5.1 of the paper.
 
     This is :func:`draw_quadratic_problem` followed by
     :func:`build_quadratic_data`.  ``rho``, ``shift`` and ``norm_const`` are
@@ -131,13 +160,13 @@ def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None,
     """
     if rng is None:
         rng = np.random.RandomState(seed)
-    V, bi, u = draw_quadratic_problem(n, p, rng)
+    V, bi, u = draw_quadratic_problem(N, d, rng)
     return build_quadratic_data(V, bi, u, rho=rho, shift=shift,
                                 norm_const=norm_const)
 
 
-def generate_logistic_data(n, p, seed, theta0=None, rng=None):
-    """Generate binary-logistic data as in Section 6.4 of the paper.
+def generate_logistic_data(N, d, seed, theta0=None, rng=None):
+    """Generate binary-logistic data as in Section EC.7.1 of the paper.
 
     a_i ~ N(0, I_d);  b_i = 1 with prob. sigmoid(theta0^T a_i), 0 otherwise.
     The default theta0 = (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
@@ -160,22 +189,24 @@ def generate_logistic_data(n, p, seed, theta0=None, rng=None):
     if rng is None:
         rng = np.random.RandomState(seed)
     if theta0 is None:
-        theta0 = np.ones((p, 1)) / np.sqrt(p)
-    X = rng.multivariate_normal(np.zeros(p), np.eye(p), size=n)
+        theta0 = np.ones((d, 1)) / np.sqrt(d)
+    X = rng.multivariate_normal(np.zeros(d), np.eye(d), size=N)
     thres = 1.0 / (1.0 + np.exp(-(X @ theta0))).reshape(-1)
-    y = (thres < rng.random(n)).astype(np.int64)
+    y = (thres < rng.random(N)).astype(np.int64)
     return X, y, theta0
 
 
 # --------------------------------------------------------------------------- #
 # Mini-batch schedule
 # --------------------------------------------------------------------------- #
-def make_batch_schedule(n, batch_size, K, seed, replace=False, rng=None):
+def make_batch_schedule(N, batch_size, n, seed, replace=False, rng=None):
     """Pre-sample the index sequence used by every iteration.
 
-    Returns a flat int array of length ``K * batch_size``; iteration k uses the
-    slice ``schedule[k*batch_size:(k+1)*batch_size]``.  Pre-sampling guarantees
-    that SGD and SGDM see the *same* batches (variance reduction in the plots).
+    ``N`` is the paper's training-set size and ``n`` its number of iterations,
+    so the returned flat int array has length ``n * batch_size``; iteration k
+    uses the slice ``schedule[k*batch_size:(k+1)*batch_size]``.  Pre-sampling
+    guarantees that SGD and SGDM see the *same* batches (variance reduction in
+    the plots).
 
     ``rng`` may be supplied to draw from a caller-owned stream; see
     :func:`generate_logistic_data`.
@@ -183,15 +214,15 @@ def make_batch_schedule(n, batch_size, K, seed, replace=False, rng=None):
     if rng is None:
         rng = np.random.RandomState(seed)
     if replace:
-        return rng.randint(n, size=K * batch_size)
-    idx = np.empty(K * batch_size, dtype=np.int64)
-    for k in range(K):
+        return rng.randint(N, size=n * batch_size)
+    idx = np.empty(n * batch_size, dtype=np.int64)
+    for k in range(n):
         idx[k * batch_size:(k + 1) * batch_size] = rng.choice(
-            n, batch_size, replace=False)
+            N, batch_size, replace=False)
     return idx
 
 
-def batch_gradient_sequence(Ai, bi, batch_size, schedule, K):
+def batch_gradient_sequence(Ai, bi, batch_size, schedule, n):
     """Pre-compute the mean mini-batch gradient at every iteration.
 
     Iteration k sees the batch ``schedule[k*batch_size:(k+1)*batch_size]``, so
@@ -204,12 +235,12 @@ def batch_gradient_sequence(Ai, bi, batch_size, schedule, K):
 
     Returns
     -------
-    (A_seq, b_seq) : ((K, p, p), (K, p, 1))
+    (A_seq, b_seq) : ((n, d, d), (n, d, 1))
     """
-    p = Ai.shape[1]
-    A_seq = np.empty((K, p, p))
-    b_seq = np.empty((K, p, 1))
-    for k in range(K):
+    d = Ai.shape[1]
+    A_seq = np.empty((n, d, d))
+    b_seq = np.empty((n, d, 1))
+    for k in range(n):
         i = schedule[k * batch_size:(k + 1) * batch_size]
         A_seq[k] = Ai[i].mean(axis=0)
         b_seq[k] = bi[i].mean(axis=0)
@@ -230,20 +261,20 @@ def _step_size(alpha, k):
     return alpha[k]
 
 
-def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K,
+def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, n,
             A_seq=None, b_seq=None):
-    """Last-iterate SGD. Returns the (K, p, 1) trajectory.
+    """Last-iterate SGD. Returns the (n, d, 1) trajectory.
 
-    ``alpha`` is either a scalar or a length-K per-iteration schedule.
+    ``alpha`` is either a scalar or a length-n per-iteration schedule.
 
     ``A_seq``/``b_seq`` are the optional output of
     :func:`batch_gradient_sequence`; when supplied they are replayed instead of
     re-averaging the mini-batches (identical results, much faster sweeps).
     """
-    p = initial.shape[0]
+    d = initial.shape[0]
     x = initial.copy()
-    traj = np.empty((K, p, 1))
-    for k in range(K):
+    traj = np.empty((n, d, 1))
+    for k in range(n):
         if A_seq is None:
             i = schedule[k * batch_size:(k + 1) * batch_size]
             A_batch = Ai[i].mean(axis=0)
@@ -255,18 +286,18 @@ def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K,
     return traj
 
 
-def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K,
+def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, n,
              A_seq=None, b_seq=None):
-    """Last-iterate SGDM. Returns the (K, p, 1) trajectory.
+    """Last-iterate SGDM. Returns the (n, d, 1) trajectory.
 
-    ``alpha`` is either a scalar or a length-K per-iteration schedule.
+    ``alpha`` is either a scalar or a length-n per-iteration schedule.
     ``A_seq``/``b_seq`` behave as in :func:`run_sgd`.
     """
-    p = initial.shape[0]
+    d = initial.shape[0]
     x = initial.copy()
-    m = np.zeros((p, 1))
-    traj = np.empty((K, p, 1))
-    for k in range(K):
+    m = np.zeros((d, 1))
+    traj = np.empty((n, d, 1))
+    for k in range(n):
         if A_seq is None:
             i = schedule[k * batch_size:(k + 1) * batch_size]
             A_batch = Ai[i].mean(axis=0)
@@ -279,25 +310,26 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, K,
     return traj
 
 
-def decaying_schedule(n0, K, alpha0):
+def decaying_schedule(n0, n, alpha0):
     """Decaying learning rate of Figure 7.
 
-        alpha_t = alpha0 * sqrt(n0 / max(n0, t)),   t = 1, ..., K
+        alpha_t = alpha0 * sqrt(n0 / max(n0, t)),   t = 1, ..., n
 
     i.e. alpha0 for t <= n0 and alpha0 * sqrt(n0/t) afterwards, which is the
     paper's alpha_t = alpha0 * (max{n0, t})^{-1/2} up to the constant sqrt(n0).
     """
-    t = np.arange(1, K + 1, dtype=float)
+    t = np.arange(1, n + 1, dtype=float)
     return alpha0 * np.sqrt(n0 / np.maximum(n0, t))
 
 
 def averaged_errors(traj, x_star, n0, T):
     """|| mean_{j=n0+1}^{n0+t} x_j - x^* || for t = 1..T.
 
-    ``traj`` is the (K, p, 1) last-iterate trajectory with ``traj[k] = x_k``,
-    ``n0`` the burn-in and ``T`` the number of averaged increments to report.
+    ``traj`` is the (n, d, 1) last-iterate trajectory with ``traj[k] = x_{k+1}``
+    (see the module docstring), ``n0`` the burn-in and ``T`` the number of
+    averaged increments to report.
     The first reported point is x_{n0+1}, as in the paper's definition
-    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j, so at most K - n0 - 1 points
+    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j, so at most n - n0 - 1 points
     can be produced.
     """
     T = min(T, traj.shape[0] - n0 - 1)
@@ -310,7 +342,7 @@ def averaged_errors(traj, x_star, n0, T):
 
 
 def last_iterate_errors(traj, x_star):
-    """||x_t - x^*|| for every t (traj is (K, p, 1))."""
+    """||x_t - x^*|| for every t (traj is (n, d, 1))."""
     return np.linalg.norm(traj - x_star[None, :, :], axis=(1, 2))
 
 
@@ -328,39 +360,39 @@ def asymptotic_covariance(Ai, bi, x_star, A, batch_size):
         Sigma^{-1} Omega Sigma^{-1},  with
         Omega = (1/B) * (1/N) sum_i (A_i x^* + b_i)(A_i x^* + b_i)^T.
     """
-    n = Ai.shape[0]
+    N = Ai.shape[0]
     A_inv = np.linalg.inv(A)
     Omega = np.zeros_like(A)
-    for i in range(n):
+    for i in range(N):
         delta = Ai[i] @ x_star + bi[i]
-        Omega += (delta @ delta.T) / n
+        Omega += (delta @ delta.T) / N
     Omega = Omega / batch_size
     return A_inv @ Omega @ A_inv
 
 
-def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, K, n0,
+def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, n, n0,
                    cov, gamma=0.0, phi=None, seed=0, A_seq=None, b_seq=None):
     """One replication of the projected CLT statistic Z (Eq. (def:z)).
 
-    Returns phi^T (xbar_{n0:n} - x^*) * sqrt(n-n0) / sqrt(phi^T Sigma phi),
+    Returns phi^T (xbar_{n0:n} - x^*) * sqrt(n - n0) / sqrt(phi^T Sigma phi),
     which is asymptotically N(0,1) by Corollary 3.
 
     ``A_seq``/``b_seq`` are forwarded to :func:`run_sgd` / :func:`run_sgdm`;
     supplying them lets a whole sweep over (gamma, alpha) share one pass over
     the data.
     """
-    p = initial.shape[0]
+    d = initial.shape[0]
     if phi is None:
         rng = np.random.RandomState(seed + 12345)
-        phi = rng.rand(p, 1)
+        phi = rng.rand(d, 1)
         phi = phi / np.linalg.norm(phi)
     if gamma == 0.0:
-        traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, K,
+        traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, n,
                        A_seq=A_seq, b_seq=b_seq)
     else:
         traj = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
-                        alpha, gamma, K, A_seq=A_seq, b_seq=b_seq)
+                        alpha, gamma, n, A_seq=A_seq, b_seq=b_seq)
     x_age = traj[n0:].mean(axis=0)
-    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(K - n0)
+    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0)
     den = np.sqrt(float((phi.T @ cov @ phi).sum()))
     return num / den, phi

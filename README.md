@@ -66,7 +66,7 @@ python src/theory/lambda_heatmap.py --kappa 5
 ```
 
 **Figures 2-4** — SGD / SGDM and their averaged versions on the quadratic loss.
-N = 20,000, d = 10, B = 0.2N, α = 0.001, K = 1500, 200 replications; average
+N = 20,000, d = 10, B = 0.2N, α = 0.001, n = 1500 iterations, 200 replications; average
 adaptive momentum weight 0.96.
 ```bash
 python src/quadratic/quadratic_experiment.py --num_seed 200
@@ -104,7 +104,7 @@ python src/clt/clt_experiment.py
 * Figure 8 — Frequency of Z for averaged SGD and averaged SGDM, γ = 0.9,
   n₀ = 1000, n = 2000, over 1000 trials.
 * Figure 12 — The probability P(|Z| < 1.96) for SGD and SGDM, γ = 0.8, 0.9, over
-  α = 2⁻¹¹, …, 2²; a K = 500-iteration trajectory with n₀ = 200 and 1000
+  α = 2⁻¹¹, …, 2²; an n = 500-iteration trajectory with n₀ = 200 and 1000
   trials per learning rate.
 
 **Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. The two
@@ -185,7 +185,7 @@ python src/mnist/mnist_experiment.py --download
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
 | 10 | `src/sensitivity/sensitivity_experiment.py` | γ = {0.8, 0.9}, T = 500, α = 2⁻¹¹ … 2² |
 | 11 | `src/sensitivity/sensitivity_experiment.py` | averaged, γ = 0.8, n₀ = 500 |
-| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, K = 500, n₀ = 200, 1000 trials, α = 2⁻¹¹ … 2² |
+| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 500, n₀ = 200, 1000 trials, α = 2⁻¹¹ … 2² |
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
@@ -195,7 +195,42 @@ python src/mnist/mnist_experiment.py --download
 | EC.3 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 40; `m₁ = g₁` |
 | EC.4 | `src/mnist/mnist_experiment.py` | logistic regression, B = 256, α = 1.0 |
 
-## 6. Conventions
+## 6. Notation and conventions
+
+### 6.1 Notation
+
+The code uses the paper's symbols for the paper's quantities, so a script can be
+read against the text line by line:
+
+| Paper | Code | Meaning |
+|---|---|---|
+| `N` | `N`, `--N` | training-set size |
+| `d` | `d`, `--d` | dimension of the parameter vector `x` |
+| `B` | `batch_size` | mini-batch size (`--batch_frac` as a fraction of `N`) |
+| `n` | `n`, `--n` | number of iterations of the trajectory |
+| `n₀` | `n0`, `--n0_hist` / `--n0_cov` / `--n0_list` | burn-in, i.e. the iteration averaging starts at |
+| `α` | `alpha`, `--alpha` (`--lr` in the PyTorch scripts) | learning rate |
+| `γ` | `gamma`, `--gamma` / `--gammas` / `--gamma_hist` | momentum weight (SGD is `γ = 0`) |
+| `Σ`, `A` | `A` | population Hessian `E[Aᵢ]` |
+| `Aᵢ`, `bᵢ` | `Ai`, `bi` | per-sample loss parameters |
+| `x*` | `x_star` | minimiser of the population risk |
+| `μ`, `L` | `mu`, `L` | smallest / largest eigenvalue of `A` |
+| `κ = L/μ` | `kappa` | condition number |
+| `xₜ` | `traj[t]` | last iterate (`traj` is zero-based, see below) |
+| `x̄_{n₀+t}` | `averaged_errors(...)` | Polyak-averaged iterate |
+| `Z` | `clt_projection(...)` | projected CLT statistic |
+
+A script uses a numbered variant of a symbol when it runs more than one
+configuration of the same kind — in `src/clt/clt_experiment.py`, `--n_hist` and
+`--n_cov` are the paper's `n` for the histogram and the coverage panel, and
+`gamma_hist` is its `γ` for the histogram.
+
+**Indexing.** A trajectory from `sgdm_core.run_sgd` / `run_sgdm` is zero-based:
+`traj[k]` is the paper's `x_{k+1}`, so `traj[0]` is the initial point `x₁`. The
+Polyak average is formed from `traj[n0]` onwards, i.e. `x̄_{n₀+t}` for
+`t = 1, 2, …`, exactly as in the definition.
+
+### 6.2 Conventions
 
 * **Update.** `m_t = γ m_{t-1} + (1-γ) g_t`, `x_{t+1} = x_t - α m_t`; SGD is the
   `γ = 0` case. In PyTorch this is `SGD(lr = α(1-γ), momentum = γ)`, except for
@@ -222,7 +257,7 @@ python src/mnist/mnist_experiment.py --download
 * **One stream per replication.** Each replication is driven by a single
   unbroken `numpy` stream, seeded with the replication index. The problem data
   and the mini-batch index sequence are drawn from it **in the authors' order**
-  — `V = rand(n, p, p)` → `b_i = rand(n, p, 1)` → `u = rand(p, 1)` → batch
+  — `V = rand(N, d, d)` → `b_i = rand(N, d, 1)` → `u = rand(d, 1)` → batch
   indices — which is what the notebook prototypes do (`sgdm_core.draw_*` +
   `build_*` / `generate_*` with a caller-owned `rng`, and
   `make_batch_schedule(..., rng=rng)`). Starting the schedule from a freshly

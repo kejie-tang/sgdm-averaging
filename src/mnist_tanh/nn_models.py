@@ -1,5 +1,5 @@
 """
-Neural-network definitions used by the MNIST and CIFAR experiments.
+Neural-network definitions used by the MNIST experiments.
 
 `Net` is the model behind Figures 13-15 of the paper.  The paper writes the
 per-sample loss as
@@ -28,11 +28,12 @@ Two remarks on the paper's notation, since it is easy to misread:
 The hidden width (500) and the use of ``tanh`` are taken from the authors'
 original training code (``nn_models.py`` in the experiment sources); the class
 below is a faithful re-implementation.
+
+The CIFAR-10 network of Figure 16 is separate: see ``../cifar/vgg.py``.
 """
 
 from __future__ import annotations
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -49,14 +50,3 @@ class Net(nn.Module):
     def forward(self, x):
         x = F.tanh(self.fc1(x))
         return self.fc2(x)
-
-
-class LogisticRegression(nn.Module):
-    """Single linear layer (multinomial logistic regression, Figure EC.4)."""
-
-    def __init__(self, input_dim: int = 784, output_dim: int = 10):
-        super().__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-
-    def forward(self, x):
-        return self.linear(x)

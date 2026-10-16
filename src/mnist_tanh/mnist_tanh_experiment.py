@@ -13,8 +13,9 @@ Setting
 MNIST, N = 60,000 images of size 28x28 reshaped to 784-dim vectors, inputs in
 [0, 1].  Batch size B = 256, learning rate alpha = 1.0, 5 epochs, seeds 1, 2, 3,
 and momentum weights gamma in {0.0 (SGD), 0.1, 0.3, 0.5, 0.7, 0.9, 0.99}.  As
-in the paper, the momentum weight beta and the learning rate alpha are realised
-with ``SGD(lr = alpha * (1 - beta), momentum = beta)``.
+in the paper, the momentum weight gamma and the learning rate alpha are realised
+with ``SGD(lr = alpha * (1 - gamma), momentum = gamma)`` (the optimiser scales
+its momentum step by ``lr``, so the product is ``alpha * m_t``).
 
 Reporting convention (important)
 --------------------------------
@@ -97,8 +98,8 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    n = X.shape[0]
-    num_batches = n // batch_size
+    N = X.shape[0]
+    num_batches = N // batch_size
     Xt = torch.from_numpy(X.astype(np.float32) / 255.0)
     yt = torch.from_numpy(y)
 
@@ -117,7 +118,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
     t = 0
     for _ in range(1, num_epochs + 1):
         for _ in range(num_batches):
-            choice = np.random.choice(n, batch_size, replace=False)
+            choice = np.random.choice(N, batch_size, replace=False)
             inputs = Xt[choice].to(device)
             targets = yt[choice].to(device)
 
@@ -198,32 +199,32 @@ def main():
             lasts.append(last)
             for n0 in args.n0_list:
                 aves[n0].append(ave[n0])
-        L = min(len(a) for a in lasts)
+        n_iter = min(len(a) for a in lasts)
         last_curves[gamma] = cumulative_mean(
-            np.mean([a[:L] for a in lasts], axis=0))
+            np.mean([a[:n_iter] for a in lasts], axis=0))
         ave_curves[gamma] = {}
         for n0 in args.n0_list:
-            La = min(len(a) for a in aves[n0])
+            n_iter_ave = min(len(a) for a in aves[n0])
             ave_curves[gamma][n0] = cumulative_mean(
-                np.mean([a[:La] for a in aves[n0]], axis=0))
+                np.mean([a[:n_iter_ave] for a in aves[n0]], axis=0))
 
     T = min(len(c) for c in last_curves.values())
 
-    def draw(fname, betas, getter, lo, hi, ylim, include_sgd, style,
+    def draw(fname, gammas, getter, lo, hi, ylim, include_sgd, style,
              prefix=""):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2,
             figure=fig)[0])
         j = 0
-        for beta in ([0.0] if include_sgd else []) + list(betas):
-            y = getter(beta)
+        for gamma in ([0.0] if include_sgd else []) + list(gammas):
+            y = getter(gamma)
             if y is None:
                 continue
-            if beta == 0.0:
+            if gamma == 0.0:
                 label = "SGD" if not prefix else "Ave-SGD (Out of Plot)"
             else:
-                label = f"{prefix}SGDM-{beta}"
+                label = f"{prefix}SGDM-{gamma}"
             x = np.arange(lo, hi)
             ax.plot(x, y[lo:hi], label=label, marker=style["markers"][j],
                     markevery=0.3, markersize=6,
@@ -245,8 +246,8 @@ def main():
 
     # Figures 14 and 15: averaged parameters, plotted from t = n0.
     for n0 in args.n0_list:
-        def ave_getter(beta, _n0=n0):
-            return ave_curves.get(beta, {}).get(_n0)
+        def ave_getter(gamma, _n0=n0):
+            return ave_curves.get(gamma, {}).get(_n0)
 
         draw(f"fig_avetanh_n0_{n0}_small.png", [0.3, 0.5], ave_getter, n0, T,
              (0.20, 0.65), True, SMALL, prefix="Ave-")
