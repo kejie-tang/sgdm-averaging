@@ -185,7 +185,7 @@ python src/mnist/mnist_experiment.py --download
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
 | 10 | `src/sensitivity/sensitivity_experiment.py` | γ = {0.8, 0.9}, T = 500, α = 2⁻¹¹ … 2² |
 | 11 | `src/sensitivity/sensitivity_experiment.py` | averaged, γ = 0.8, n₀ = 500 |
-| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 1000, n₀ = 500, α = 2⁻¹¹ … 2² |
+| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, K = 500, n₀ = 200, 1000 trials, α = 2⁻¹¹ … 2² |
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
