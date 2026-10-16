@@ -139,7 +139,7 @@ def curve_from_logs(csv_path):
 def load_curves(log_dir):
     curves = {}
     for gamma in GAMMAS:
-        path = os.path.join(log_dir, f"lr0.5_beta{gamma}.csv")
+        path = os.path.join(log_dir, f"lr0.5_gamma{gamma}.csv")
         if not os.path.isfile(path):
             raise FileNotFoundError(
                 f"{path} not found. The Figure-16 logs ship with the release "

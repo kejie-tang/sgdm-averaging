@@ -87,10 +87,10 @@ training script that generated them was not preserved with the sources.
 
 ```
 data/cifar_logs/
-    lr0.5_beta0.0.csv     SGD,      seed 1/2/3
-    lr0.5_beta0.7.csv     SGDM-0.7, seed 1/2/3
-    lr0.5_beta0.9.csv     SGDM-0.9, seed 1/2/3
-    lr0.5_beta0.99.csv    SGDM-0.99, seed 1/2/3
+    lr0.5_gamma0.0.csv     SGD,      seed 1/2/3
+    lr0.5_gamma0.7.csv     SGDM-0.7, seed 1/2/3
+    lr0.5_gamma0.9.csv     SGDM-0.9, seed 1/2/3
+    lr0.5_gamma0.99.csv    SGDM-0.99, seed 1/2/3
 ```
 
 Each file has a header `iteration,seed1,seed2,seed3` followed by 19,550 rows —
