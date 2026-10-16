@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# the submission archive built by scripts/make_tarball.sh
+*.tar.gz
+
 # ---------------------------------------------------------------------------
 # MNIST and CIFAR-10 are public datasets and are NOT distributed with this
 # repository.  The scripts download them on demand

@@ -15,7 +15,7 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 ├── AUTHORS
 ├── requirements.txt
 ├── src/               source code (one script per group of figures)
-├── scripts/           run_all.sh — reproduce everything in one command
+├── scripts/           run_all.sh — reproduce all; make_tarball.sh — pack
 ├── data/              public datasets + the archived Figure-16 logs
 └── docs/              submission statements
 ```
@@ -58,7 +58,11 @@ See `data/README.md`.
 ## 4. Reproducing the figures
 
 Run from the repository root. `bash scripts/run_all.sh` does everything
-(`FAST=1` for a quick reduced-fidelity pass).
+(`FAST=1` for a quick reduced-fidelity pass). Each script writes its figure into
+`results/<exp>/`; `bash scripts/make_tarball.sh` then packs the whole release —
+those figures, the archived Figure-16 logs and the sources — into one archive
+for submission, leaving the downloaded MNIST / CIFAR-10 copies out. Use `RAW=0`
+for a figure-only archive (~4 MB) if the submission system caps attachments.
 
 **Figure 1** — colour maps of the spectral radius λ of the SGDM recursion.
 Panel (a) is the spectral radius itself; panel (b) highlights, in yellow, the

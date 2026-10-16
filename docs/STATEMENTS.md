@@ -81,6 +81,12 @@ among the recommended sub-directories ("should contain any raw results from the
 paper, as well as any plots or figures"), which the tarball satisfies even
 though the repository itself does not carry the files.
 
+`bash scripts/make_tarball.sh` builds that archive: the files above plus
+`results/`, with the 295 MB of public MNIST / CIFAR-10 downloads left out.
+It prints the size and refuses to finish if anything is missing or if a
+dataset leaked in. `RAW=0` gives a figure-only archive (~4 MB instead of
+~126 MB) for a submission system with a size cap.
+
 ## Anonymous link
 
 This repository is mirrored at
