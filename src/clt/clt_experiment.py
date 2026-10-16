@@ -12,8 +12,18 @@ is asymptotically N(0, 1) by Corollary 3.
 Figure 8 : frequency of Z for averaged SGD and averaged SGDM, gamma = 0.9,
            n0 = 1000, n = 2000, over 1000 trials.
 Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
-           and SGDM (gamma = 0.8, 0.9), with n = 1000 iterations, a burn-in of
-           n0 = 500 and 1000 trials per learning rate (Section 5.2).
+           and SGDM (gamma = 0.8, 0.9), over the grid alpha = 2^-11 ... 2^2,
+           with a trajectory of K = 500 iterations, a burn-in of n0 = 200 and
+           1000 trials per learning rate.
+
+           ``--K_cov 500 --n0_cov 200`` are the values the authors' notebook
+           for this panel uses (``SGDM修改2/clt.ipynb``), and they are what
+           reproduce the published curve: the transition of SGDM-0.9 falls
+           between alpha = 2^-8 (coverage ~0.1) and 2^-7 (~0.9).  Section 5.2
+           of the paper instead states "n = 1000 and n0 = 500" for this
+           experiment; with those values the transition sits one grid step
+           further left (SGDM-0.9 is already at ~0.93 at alpha = 2^-8), so the
+           released panel follows the code rather than that sentence.
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz
@@ -32,7 +42,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
     asymptotic_covariance, batch_gradient_sequence, clt_projection,
-    generate_quadratic_data, make_batch_schedule,
+    make_batch_schedule,
 )
 
 import matplotlib
@@ -41,13 +51,17 @@ import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.gridspec as gridspec  # noqa: E402
 
 MARKERS = ["o", "v", "s", "p", "P", "*", "+", "x"]
-LINESTYLES = ["-.", "--", ":", "-"]
+# The published Figure 12 draws SGD dash-dot, SGDM-0.8 solid and SGDM-0.9
+# dashed (the authors' plotting cell: ``linestyles = ['-.', '-', '--']``).
+LINESTYLES = ["-.", "-", "--", ":"]
 
 
 def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
+    # The authors' canvas: 4 x 4 in with the axes box at 0.1/0.9 by 0.2/0.9.
+    # The published panels carry no axis labels, only the tick values.
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
-        1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
+        1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     # The published panels draw the N(0,1) reference first, so that it heads
     # the legend.
     x = np.linspace(-5, 5, 200)
@@ -56,8 +70,6 @@ def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
     ax.hist(z, range=(-5, 5), bins=20, density=True, rwidth=0.8,
             color=color, label=gamma_label)
     ax.set_ylim([0, 0.45])
-    ax.set_xlabel(r"$Z$")
-    ax.set_ylabel("density")
     ax.legend(fontsize=8)
     fig.savefig(os.path.join(out_dir, fname), bbox_inches="tight")
     plt.close(fig)
@@ -76,8 +88,8 @@ def main():
     # coverage experiment.
     # The paper (Section 5.2, Figure 12) uses n = 1000 iterations, a burn-in of
     # n0 = 500 and 1000 trials for each learning rate.
-    ap.add_argument("--K_cov", type=int, default=1000)
-    ap.add_argument("--n0_cov", type=int, default=500)
+    ap.add_argument("--K_cov", type=int, default=500)
+    ap.add_argument("--n0_cov", type=int, default=200)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
     # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
     ap.add_argument("--exps", type=int, nargs="+",
@@ -93,6 +105,9 @@ def main():
     batch_size = int(round(args.batch_frac * n))
 
     # --- shared problem instance for the histogram experiment ---
+    # One seed-1 stream supplies the data, the starting point *and* the
+    # projection direction, in the authors' order; the per-trial mini-batch
+    # schedules are then drawn from their own per-trial streams below.
     rng = np.random.RandomState(1)
     V = rng.rand(n, p, p)
     Ai = np.empty((n, p, p))
@@ -106,14 +121,13 @@ def main():
     noise = rng.rand(p, 1)
     noise /= np.linalg.norm(noise)
     initial = x_star + noise * 0.1
+    phi = rng.rand(p, 1)
+    phi /= np.linalg.norm(phi)
     ev = np.linalg.eigvalsh(A)
     mu = float(ev.min())
     alpha_hist = 0.001
 
     cov = asymptotic_covariance(Ai, bi, x_star, A, batch_size)
-    rng_phi = np.random.RandomState(1)
-    phi = rng_phi.rand(p, 1)
-    phi /= np.linalg.norm(phi)
 
     z_sgd = np.zeros(args.num_seed)
     z_sgdm = np.zeros(args.num_seed)
@@ -187,16 +201,21 @@ def main():
 
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
-        1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
+        1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     ax.plot(args.exps, cover_sgd.mean(axis=0), label="SGD", marker=MARKERS[0],
-            linestyle=LINESTYLES[0])
+            markevery=0.3, linestyle=LINESTYLES[0])
     for bi_, beta in enumerate(args.betas):
         ax.plot(args.exps, cover_sgdm[:, bi_, :].mean(axis=0),
                 label=f"SGDM-{beta}", marker=MARKERS[bi_ + 1],
-                linestyle=LINESTYLES[bi_ + 1])
+                markevery=0.3, linestyle=LINESTYLES[bi_ + 1])
     ax.axhline(y=0.95, color="black", linestyle="--")
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$P(|Z|<1.96)$")
+    ax.set_xticks(list(range(-11, 3)))
+    ax.set_xlim([-11.3, 2.8])
+    # The authors' tick list carries an extra 0.95 (the nominal level), which
+    # is also what makes matplotlib label the axis with two decimals.
+    ax.set_yticks([i * 0.2 for i in range(6)] + [0.95])
     ax.set_ylim([-0.01, 1.05])
     ax.legend(fontsize=8)
     fig.savefig(os.path.join(args.out, "fig_clt_alpha.png"),

@@ -26,7 +26,7 @@ gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  The realised PyTorch step is
 by (1 - gamma) as it is in the convex experiments.
 
 There is no batch normalisation: the paper cites the original VGG-11, and this
-is what the stored logs imply (see ``vgg.py`` and README.md, section 7).
+is what the stored logs imply (see ``vgg.py``).
 
 Reporting convention
 --------------------
@@ -282,14 +282,17 @@ def train_curves(args, device):
 # ---------------------------------------------------------------------------
 
 def draw(curves, out_png):
+    # The authors' canvas: 4 x 4 in with the axes box at 0.1/0.9 by 0.2/0.9,
+    # markevery=0.3, saved with bbox_inches="tight" (the notebooks' savefig
+    # line, which the published panels were produced with).
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
-        1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15, figure=fig)[0])
+        1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     for j, gamma in enumerate(GAMMAS):
         label = "SGD" if gamma == 0.0 else f"SGDM-{gamma}"
         yy = curves[gamma]
         ax.plot(np.arange(len(yy)), yy, label=label, marker=MARKERS[j],
-                markevery=max(1, len(yy) // 6),
+                markevery=0.3,
                 linestyle=LINESTYLES[j % 4], color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel("Training Loss")

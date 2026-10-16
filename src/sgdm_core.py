@@ -40,17 +40,35 @@ import numpy as np
 # --------------------------------------------------------------------------- #
 # Data generation
 # --------------------------------------------------------------------------- #
-def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None):
-    """Generate a quadratic-loss problem as in Section 6.1 of the paper.
+def draw_quadratic_problem(n, p, rng):
+    """Draw the raw random tensors of the Section 6.1 problem, in the authors'
+    order: ``V`` (n, p, p), then ``b_i`` (n, p, 1), then the noise direction
+    ``u`` (p, 1) of the starting point.
+
+    The authors' notebooks take all three from one unbroken ``np.random``
+    stream and then go on drawing the mini-batch indices from the *same*
+    stream.  Keeping the draws in a helper of their own is what lets a caller
+    share that single stream with :func:`make_batch_schedule`; see
+    :func:`generate_quadratic_data`.
+    """
+    V = rng.rand(n, p, p)
+    bi = rng.rand(n, p, 1)
+    u = rng.rand(p, 1)
+    return V, bi, u
+
+
+def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
+    """Assemble a quadratic-loss problem from the draws of
+    :func:`draw_quadratic_problem`.
 
     Parameters
     ----------
-    n : int
-        Sample size N.
-    p : int
-        Dimension d.
-    seed : int
-        Seed for ``np.random`` (set inside, so results are reproducible).
+    V : (n, p, p) array
+        The draws that form the individual Hessians.
+    bi : (n, p, 1) array
+        The draws that form the individual linear terms.
+    u : (p, 1) array
+        The unnormalised direction of the initial perturbation.
     rho : float
         Scale of the low-rank part of A_i, controls the condition number L/mu.
     shift : float
@@ -73,28 +91,49 @@ def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None):
         mu, L  : smallest / largest eigenvalue of A
         initial : (p, 1) starting point x_1 (x^* plus a small perturbation)
     """
-    rng = np.random.RandomState(seed)
-    V = rng.rand(n, p, p)
+    n, p = V.shape[0], V.shape[1]
     Ai = np.empty((n, p, p))
     for i in range(n):
         Vi = V[i]
         Ai[i] = rho * (Vi @ Vi.T) + shift * np.eye(p)
     if norm_const is not None:
         Ai = Ai / float(norm_const)
-    bi = rng.rand(n, p, 1)
 
     A = Ai.mean(axis=0)
     b = bi.mean(axis=0)
     x_star = np.linalg.solve(A, -b)
 
-    noise = rng.rand(p, 1)
-    noise = noise / np.linalg.norm(noise)
-    initial = x_star + noise * 0.1
+    u = u / np.linalg.norm(u)
+    initial = x_star + u * 0.1
 
     ev = np.linalg.eigvalsh(A)
     mu, L = float(np.min(ev)), float(np.max(ev))
     return dict(Ai=Ai, bi=bi, A=A, b=b, x_star=x_star,
                 mu=mu, L=L, initial=initial)
+
+
+def generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0, norm_const=None,
+                            rng=None):
+    """Generate a quadratic-loss problem as in Section 6.1 of the paper.
+
+    This is :func:`draw_quadratic_problem` followed by
+    :func:`build_quadratic_data`.  ``rho``, ``shift`` and ``norm_const`` are
+    forwarded to the latter; the random draws depend on the seed (and on
+    ``rho`` only through ``Ai``, so every ``rho`` describes the *same*
+    realisation of ``V``, ``b_i`` and the starting point).
+
+    ``rng`` may be supplied to draw from a caller-owned stream; when it is
+    given the three tensors are taken from it, so the caller can keep using the
+    same stream for the mini-batch schedule -- which is exactly what the
+    authors' notebooks do.  The experiment scripts therefore call
+    :func:`draw_quadratic_problem` and :func:`make_batch_schedule` directly
+    rather than this wrapper.
+    """
+    if rng is None:
+        rng = np.random.RandomState(seed)
+    V, bi, u = draw_quadratic_problem(n, p, rng)
+    return build_quadratic_data(V, bi, u, rho=rho, shift=shift,
+                                norm_const=norm_const)
 
 
 def generate_logistic_data(n, p, seed, theta0=None, rng=None):

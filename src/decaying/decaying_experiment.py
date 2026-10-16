@@ -36,9 +36,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
-    averaged_errors, batch_gradient_sequence, decaying_schedule,
-    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
-    run_sgd, run_sgdm,
+    averaged_errors, batch_gradient_sequence, build_quadratic_data,
+    decaying_schedule, draw_quadratic_problem, last_iterate_errors,
+    make_batch_schedule, run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -87,10 +87,13 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[decaying] seed {seed}/{args.num_seed}", flush=True)
-        data = generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0)
+        rng = np.random.RandomState(seed)
+        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+                                       rng=rng)
         # The batches do not depend on n0, so the batch gradients are formed
         # once per replication and replayed by every panel / method.
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, K)
@@ -118,8 +121,8 @@ def main():
     # ------------------------------------------------------------------ #
     def _panel(n0, fname):
         fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
-                                 bottom=0.15, figure=fig)
+        spec = gridspec.GridSpec(1, 1, left=0.1, right=0.9, top=0.9,
+                                 bottom=0.2, figure=fig)
         ax = fig.add_subplot(spec[0])
         for label, ci, mi, ls in CURVES:
             if label == "SGD":
@@ -132,12 +135,12 @@ def main():
             else:
                 y = (ave_sgdm[n0] ** 2).mean(axis=0)
                 x = np.arange(n0 + 1, n0 + 1 + y.size)
-            ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=250,
+            ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=0.3,
                     linestyle=ls, color=COLORS[ci])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-2])
+        ax.set_ylim([1e-9, 2e-2])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)

@@ -27,7 +27,9 @@ experiments:
 
 | Function | Purpose |
 |---|---|
-| `generate_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu` |
+| `draw_quadratic_problem` | the raw draws `V = rand(n, p, p)`, `b_i = rand(n, p, 1)`, `u = rand(p, 1)` from a caller-owned `rng` |
+| `build_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
+| `generate_quadratic_data` | `draw_quadratic_problem` + `build_quadratic_data` in one call (kept for convenience; `rng=` passthrough supported) |
 | `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)`; accepts a caller-owned `rng` so the features, labels and batches can be drawn from one stream |
 | `make_batch_schedule` | the pre-sampled index sequence shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
@@ -55,6 +57,33 @@ The error curves are aggregated over replications by **squaring first and then
 averaging** — `mean_seed ||x - x*||^2`, i.e. `np.mean(err ** 2, axis=0)` — which
 is what the authors' plotting helpers compute.
 
+Each replication is driven by **one unbroken random stream**: the problem data
+and the mini-batch index sequence are drawn from it in the authors' order
+(draw the data, then draw the schedule). This matters — seeding the schedule
+separately yields a statistically equivalent but different realisation, and the
+released panel then no longer coincides with the published one.
+
+## Plotting geometry
+
+The panels are drawn on the authors' canvas, which is what makes a regenerated
+figure line up with the published one:
+
+* `figsize = (4, 4)` (and `(8, 4)` / `(5, 4)` for the two-panel and sweep
+  figures), with the axes box spanning `left=0.1, right=0.9, top=0.9,
+  bottom=0.2` — a 3.2 x 2.8 inch box.
+* `markevery = 0.3`. A **float** `markevery` is interpreted by matplotlib as a
+  fraction of the axes-box diagonal and spaces the markers by arc length along
+  the curve, so the marker positions follow from the axes-box size, not from
+  the data alone. Reproducing the published marker positions requires copying
+  the canvas above as well as `markevery`.
+* `fig.savefig(path, bbox_inches="tight")` — the published panels are
+  tight-cropped, which is measurable: on the paper the axes box occupies about
+  0.79 of the image width and 0.82 of its height, whereas a raw 4 x 4 in canvas
+  gives 0.80 / 0.70. Cropping with `tight` is also what keeps the longer
+  y-labels (e.g. Figure 16's `Training Loss`) from being cut off.
+* `yscale("log")` with explicit `set_ylim(...)` per panel (values listed in the
+  script docstrings).
+
 * theory (Fig 1)          <- `plot的副本3.ipynb`
 * quadratic (Figs 2-4)    <- `sgd_and_sgdm_repeat2.ipynb` / `...-save*.ipynb`
 * n0 sensitivity (Fig 5)  <- `sgd_and_sgdm_decaying.ipynb`
@@ -74,9 +103,8 @@ is what the authors' plotting helpers compute.
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb` (averaging,
   moments) and `...的副本.ipynb` (n₀ = 20 variant). The scripts reproduce the
   authors' own recursion, including the special first momentum `g_1 = grad(x_1)`
-  without the `(1 - gamma)` factor; see `../README.md` Section 4. Re-running
-  the notebook's cell verbatim and comparing with
-  `results/logistic/logistic_raw.npz` agrees to 1.1e-15.
+  without the `(1 - gamma)` factor. Re-running the notebook's cell verbatim and
+  comparing with `results/logistic/logistic_raw.npz` agrees to 1.1e-15.
 * MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`,
   `logs-save-logistic/`
 

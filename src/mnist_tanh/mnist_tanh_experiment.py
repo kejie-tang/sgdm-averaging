@@ -213,7 +213,7 @@ def main():
              prefix=""):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
-            1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15,
+            1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2,
             figure=fig)[0])
         j = 0
         for beta in ([0.0] if include_sgd else []) + list(betas):
@@ -226,7 +226,7 @@ def main():
                 label = f"{prefix}SGDM-{beta}"
             x = np.arange(lo, hi)
             ax.plot(x, y[lo:hi], label=label, marker=style["markers"][j],
-                    markevery=max(1, len(x) // 8), markersize=6,
+                    markevery=0.3, markersize=6,
                     linestyle=style["linestyles"][j],
                     color=style["colors"][j])
             j += 1

@@ -17,6 +17,12 @@ seeds.  (The electronic companion describes this as an average over the past
 floor(N/B) batches; the running mean is what the published curves use, and the
 two agree for t <= floor(N/B).)
 
+The published panel stops at t = 1000 although the authors' run trains 20
+epochs (20 x 234 = 4680 mini-batches), so the curves are cut at ``--max_iter``
+(default 1000).  Cutting them matters for more than the axis range: the marker
+positions follow the *arc length* of the drawn path, so the markers land
+elsewhere if the tail is left in.
+
 Panel layout:
     (a) "Small gamma": SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5
     (b) "Large gamma": SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-0.99
@@ -131,7 +137,8 @@ def moving_average(arr, k):
     return out
 
 
-def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device):
+def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device,
+            max_iter=None):
     import torch
     import torch.nn as nn
     import torch.optim as optim
@@ -165,6 +172,8 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device):
             loss.backward()
             optimizer.step()
             losses.append(loss.item())
+            if max_iter is not None and len(losses) >= max_iter:
+                return np.array(losses)
     return np.array(losses)
 
 
@@ -176,6 +185,12 @@ def main():
     ap.add_argument("--lr", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch_size", type=int, default=256)
+    ap.add_argument("--max_iter", type=int, default=1000,
+                    help="iterations that are plotted along t.  The authors' "
+                         "run trains 20 epochs (4680 mini-batches) but the "
+                         "published panel stops at t = 1000, so the curves are "
+                         "cut there; this also fixes the marker positions, "
+                         "which follow the arc length of the drawn path.")
     ap.add_argument("--data-root", type=str, default=None)
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--device", type=str, default=None)
@@ -204,7 +219,8 @@ def main():
         for seed in args.seeds:
             print(f"[mnist] gamma={gamma} seed={seed}", flush=True)
             runs.append(run_one(seed, gamma, args.lr, args.epochs,
-                                args.batch_size, X, y, device))
+                                args.batch_size, X, y, device,
+                                max_iter=args.max_iter))
         L = min(len(r) for r in runs)
         # Running mean of the loss over iterations 1..t (see the module
         # docstring); applied per run before averaging over the seeds.
@@ -212,9 +228,11 @@ def main():
         curves[gamma] = np.mean(ma_runs, axis=0)
 
     def plot(fname, betas, ylim, include_sgd, style):
+        # The authors' canvas: 4 x 4 in, axes box at 0.1/0.9 by 0.2/0.9,
+        # markevery=0.3, saved with bbox_inches="tight".
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
-            1, 1, left=0.17, right=0.95, top=0.95, bottom=0.15, figure=fig)[0])
+            1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
         j = 0
         wanted = ([0.0] if include_sgd else []) + list(betas)
         for beta in wanted:
@@ -222,7 +240,7 @@ def main():
                 continue
             label = "SGD" if beta == 0.0 else f"SGDM-{beta}"
             ax.plot(curves[beta], label=label, marker=style["markers"][j],
-                    markevery=max(1, len(curves[beta]) // 8), markersize=6,
+                    markevery=0.3, markersize=6,
                     linestyle=style["linestyles"][j],
                     color=style["colors"][j])
             j += 1

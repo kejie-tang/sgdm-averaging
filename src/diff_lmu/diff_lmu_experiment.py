@@ -5,8 +5,8 @@ Setting
 -------
 Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10}.
 The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
-are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS`` and README.md,
-section 7).  Otherwise the setup of Section 6.1: N = 20,000, d = 10, batch
+are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS``).  Otherwise the
+setup of Section 6.1: N = 20,000, d = 10, batch
 size B = 0.2 N, learning rate
 alpha = 0.001, K = 1500 iterations, 200 replications.  The momentum weight is
 the *adaptive* weight gamma = ((1 - mu alpha)/(1 + mu alpha))^2 computed from
@@ -39,8 +39,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
     adaptive_gamma, averaged_errors, batch_gradient_sequence,
-    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
-    run_sgd, run_sgdm,
+    build_quadratic_data, draw_quadratic_problem, last_iterate_errors,
+    make_batch_schedule, run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -57,8 +57,8 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
 # hardcodes them (``kappa_set = [3.5, 9.9, 14.7]``); they are not read off the
 # data.  The realised values, which the script prints, are 3.3 / 9.9 / 14.7 --
 # the rho = 5 and rho = 10 entries agree to one decimal, the rho = 1 entry does
-# not (see README.md, section 7).  The labels below are what the paper's
-# caption and legend say, so the released figure matches the published one.
+# not.  The labels below are what the paper's caption and legend say, so the
+# released figure matches the published one.
 KAPPA_LABELS = [3.5, 9.9, 14.7]
 
 
@@ -96,10 +96,18 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[diff-Lmu] seed {seed}/{args.num_seed}", flush=True)
+        # One unbroken stream per replication, and one realisation of V, b_i
+        # and the starting point shared by every rho: the authors' notebook
+        # re-seeds inside the seed loop and then draws the mini-batch indices
+        # from the same stream, so the data are identical across rho while the
+        # schedule continues where the data left off.
+        rng = np.random.RandomState(seed)
+        V, bi_r, u = draw_quadratic_problem(n, p, rng)
         # The mini-batch schedule depends only on the seed, not on rho.
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+                                       rng=rng)
         for j, rho in enumerate(rho_list):
-            data = generate_quadratic_data(n, p, seed, rho=rho, shift=10.0)
+            data = build_quadratic_data(V, bi_r, u, rho=rho, shift=10.0)
             Ai, bi = data["Ai"], data["bi"]
             x_star, mu, initial = data["x_star"], data["mu"], data["initial"]
             if seed == 0:
@@ -132,8 +140,8 @@ def main():
     # ------------------------------------------------------------------ #
     def _panel(fname, err, ave, last_label, ave_label, colors, marker):
         fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
-                                 bottom=0.15, figure=fig)
+        spec = gridspec.GridSpec(1, 1, left=0.1, right=0.9, top=0.9,
+                                 bottom=0.2, figure=fig)
         ax = fig.add_subplot(spec[0])
         # The published panels list the last-iterate curves first and the
         # averaged ones after, so the two loops are separate.
@@ -141,19 +149,19 @@ def main():
             cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
             ax.plot(np.arange(K), (err[:, :, j] ** 2).mean(axis=0),
                     label=rf"{last_label}-$L/\mu={cond:.1f}$",
-                    marker=marker, markevery=250,
+                    marker=marker, markevery=0.3,
                     linestyle=":", color=colors[j])
         for j, rho in enumerate(rho_list):
             cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
             ya = (ave[:, :, j] ** 2).mean(axis=0)
             ax.plot(np.arange(n0 + 1, n0 + 1 + ya.size), ya,
                     label=rf"{ave_label}-$L/\mu={cond:.1f}$",
-                    marker=marker, markevery=250,
+                    marker=marker, markevery=0.3,
                     linestyle="-", color=colors[j], zorder=5)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-2])
+        ax.set_ylim([3e-10, 2e-2])
         ax.legend(fontsize=6.5)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)

@@ -10,7 +10,9 @@ distributed.
 The quadratic-loss and logistic-loss experiments use **synthetic data generated
 in-code** from the seeds and parameter values given in the paper. Nothing needs
 to be downloaded; the generators live in `src/sgdm_core.py`
-(`generate_quadratic_data`, `generate_logistic_data`).
+(`draw_quadratic_problem` / `build_quadratic_data`, `generate_logistic_data`).
+Each replication draws its data *and* its mini-batch index sequence from one
+unbroken random stream, in the order the authors' notebooks use.
 
 ## MNIST (Figures 13-15 and EC.4)
 
@@ -95,7 +97,7 @@ Each file has a header `iteration,seed1,seed2,seed3` followed by 19,550 rows —
 one per mini-batch, 50 epochs × 391 batches of size 128. A run that diverged
 has `nan` from the point it blew up (one of the three SGD seeds does, at
 iteration 18,447); this is what produces the spike at the right edge of the
-published panel. See README.md, section 7.
+published panel.
 
 ## Terms
 

@@ -37,7 +37,9 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from sgdm_core import generate_quadratic_data, make_batch_schedule  # noqa: E402
+from sgdm_core import (  # noqa: E402
+    build_quadratic_data, draw_quadratic_problem, make_batch_schedule,
+)
 
 import matplotlib
 matplotlib.use("Agg")
@@ -157,11 +159,14 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[sensitivity] seed {seed}/{args.num_seed}", flush=True)
-        data = generate_quadratic_data(n, p, seed, rho=1.0, shift=1.03,
-                                       norm_const=1.04)
+        rng = np.random.RandomState(seed)
+        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=1.03,
+                                    norm_const=1.04)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+                                       rng=rng)
 
         # Pre-compute the per-iteration batch gradients once (shared by all
         # (gamma, alpha) pairs, since the mini-batches do not depend on them).
@@ -191,29 +196,33 @@ def main():
             ave_sgdm[seed, :, ai_] = ave[(betas0, alpha)]
 
     # ---- Figure 9: last iterate under different learning rates ----
-    fig = plt.figure(figsize=(9, 4), dpi=150)
-    spec = gridspec.GridSpec(1, 2, left=0.075, right=0.98, top=0.93,
-                             bottom=0.15, wspace=0.25, figure=fig)
+    # Two panels on the authors' 8 x 4 inch canvas, each with the 0.1/0.9 by
+    # 0.2/0.9 axes box; the x-axis is the paper's [0, 500].
+    fig = plt.figure(figsize=(8, 4), dpi=150)
+    spec = gridspec.GridSpec(1, 2, left=0.1, right=0.9, top=0.9,
+                             bottom=0.2, figure=fig)
 
     ax = fig.add_subplot(spec[0])
     for j, e in enumerate(SGD_CURVE_EXPS):
         mk, ls = FIG9_STYLE[j]
         ax.plot(np.arange(T + 1), last_sgd[:, :, j].mean(axis=0),
-                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=100,
+                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=0.3,
                 linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$\|x_t-x^*\|^2$")
     ax.set_yscale("log")
+    ax.set_xlim([0, T])
     ax.set_ylim([1e-7, 1e-1])
     ax.legend(fontsize=9)
     ax = fig.add_subplot(spec[1])
     for j, e in enumerate(SGDM_CURVE_EXPS):
         mk, ls = FIG9_STYLE[j]
         ax.plot(np.arange(T + 1), last_sgdm[:, :, j].mean(axis=0),
-                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=100,
+                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=0.3,
                 linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_yscale("log")
+    ax.set_xlim([0, T])
     ax.set_ylim([1e-7, 1e-1])
     ax.legend(fontsize=9)
     fig.savefig(os.path.join(args.out, "fig_dif_alpha.png"),
@@ -223,17 +232,20 @@ def main():
     # ---- Figure 10: final error at T vs alpha ----
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
-        1, 1, left=0.15, right=0.97, top=0.95, bottom=0.15, figure=fig)[0])
+        1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
     ax.plot(FINAL_EXPS, err_sgd.mean(axis=0), label="SGD",
-            marker="o", linestyle="--", color=COLORS[0])
+            marker="o", markevery=0.3, linestyle="--", color=COLORS[0])
     for bi_, beta in enumerate(args.betas):
         ax.plot(FINAL_EXPS, err_sgdm[:, bi_, :].mean(axis=0),
                 label=rf"SGDM-{beta}", marker=("v", "s")[bi_],
-                linestyle=("-", "--")[bi_], color=COLORS[bi_ + 1])
+                markevery=0.3, linestyle=("-", "--")[bi_],
+                color=COLORS[bi_ + 1])
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$\|x_T-x^*\|^2$")
     ax.set_yscale("log")
-    ax.set_ylim([1e-6, 2e0])
+    ax.set_xticks(FINAL_EXPS)
+    ax.set_xlim([-11.3, 2.3])
+    ax.set_ylim([2e-7, 2e0])
     ax.legend(loc="upper left")
     fig.savefig(os.path.join(args.out, "fig_sen_alpha.png"),
                 bbox_inches="tight")
@@ -241,29 +253,31 @@ def main():
 
     # ---- Figure 11: averaged iterate under different learning rates ----
     t_ave = np.arange(1, K - n0 + 1)
-    fig = plt.figure(figsize=(9, 4), dpi=150)
-    spec = gridspec.GridSpec(1, 2, left=0.075, right=0.98, top=0.93,
-                             bottom=0.15, wspace=0.25, figure=fig)
+    fig = plt.figure(figsize=(8, 4), dpi=150)
+    spec = gridspec.GridSpec(1, 2, left=0.1, right=0.9, top=0.9,
+                             bottom=0.2, figure=fig)
     ax = fig.add_subplot(spec[0])
     for j, e in enumerate(SGD_CURVE_EXPS):
         mk, ls = FIG11_STYLE[j]
         ax.plot(t_ave, ave_sgd[:, :, j].mean(axis=0),
-                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=100,
+                label=rf"SGD-$2^{{{e}}}$", marker=mk, markevery=0.3,
                 linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel(r"$\|\bar{x}_{n_0+t}-x^*\|^2$")
     ax.set_yscale("log")
-    ax.set_ylim([5e-8, 1e-4])
+    ax.set_xlim([0, K - n0])
+    ax.set_ylim([7e-8, 1e-4])
     ax.legend(fontsize=9)
     ax = fig.add_subplot(spec[1])
     for j, e in enumerate(SGDM_CURVE_EXPS):
         mk, ls = FIG11_STYLE[j]
         ax.plot(t_ave, ave_sgdm[:, :, j].mean(axis=0),
-                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=100,
+                label=rf"SGDM-$2^{{{e}}}$", marker=mk, markevery=0.3,
                 linestyle=ls, color=COLORS[j])
     ax.set_xlabel(r"$t$")
     ax.set_yscale("log")
-    ax.set_ylim([5e-8, 1e-4])
+    ax.set_xlim([0, K - n0])
+    ax.set_ylim([7e-8, 1e-4])
     ax.legend(fontsize=9)
     fig.savefig(os.path.join(args.out, "fig_ave_alpha.png"),
                 bbox_inches="tight")

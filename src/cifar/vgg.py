@@ -15,7 +15,7 @@ momentum runs start from chance level and descend gradually.  A network *with*
 batch normalisation behaves quite differently -- it has a much larger initial
 loss (2.5-2.7) and starts learning inside the first epoch.  With batch
 normalisation removed, the reconstruction reproduces the stored logs of every
-SGDM run to within about a tenth (see README.md, section 7).
+SGDM run to within about a tenth.
 
 Note that a no-BN network at alpha = 0.5 sits on a knife edge: the SGD training
 loss either stagnates at log(10) = 2.303 for the whole run or runs away

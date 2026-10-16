@@ -18,8 +18,7 @@ Figure 2  last iterate ||x_t - x^*||, small / large gamma.
 Figure 3  averaged iterates ||xbar_{n0+t} - x^*|| with n0 = 500, small / large
           gamma (same momentum values as Figure 2).  The published (b) panel
           shows the gamma in {0.5, 0.7, 0.9} curves under the labels
-          SGDM-0.97/0.98/0.99; see the note above ``plot_averaged`` and
-          README.md section 7.
+          SGDM-0.97/0.98/0.99; see the note above ``plot_averaged``.
 Figure 4  SGD, SGDM (gamma = 0.96) and their averaged versions, with
           (a) n0 = 250 and (b) n0 = 500.
 
@@ -47,8 +46,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
     adaptive_gamma, averaged_errors, batch_gradient_sequence,
-    generate_quadratic_data, last_iterate_errors, make_batch_schedule,
-    run_sgd, run_sgdm,
+    build_quadratic_data, draw_quadratic_problem, last_iterate_errors,
+    make_batch_schedule, run_sgd, run_sgdm,
 )
 
 import matplotlib
@@ -63,6 +62,21 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 # Figure 3 uses a single burn-in (500); Figure 4 uses one panel per n0.
 FIG3_N0 = 500
 GAMMA_FIG4 = 0.96
+
+# The canvas of the published panels: 4 x 4 inches with the axes box spanning
+# left=0.1 ... right=0.9 and bottom=0.2 ... top=0.9, i.e. a 3.2 x 2.8 inch box
+# -- the geometry the authors' plotting cells use.  The figures are then saved
+# with ``bbox_inches="tight"``, as the published panels were: measured on the
+# paper, the axes box occupies about 0.79 of the image width and 0.82 of its
+# height, which a raw 4x4 canvas (0.80 / 0.70) cannot produce.
+FIGSIZE = (4, 4)
+GRIDSPEC = dict(left=0.1, right=0.9, top=0.9, bottom=0.2)
+
+
+def _canvas(figsize=FIGSIZE):
+    fig = plt.figure(figsize=figsize, dpi=150)
+    ax = fig.add_subplot(gridspec.GridSpec(1, 1, figure=fig, **GRIDSPEC)[0])
+    return fig, ax
 
 
 def main():
@@ -115,13 +129,21 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[quadratic] seed {seed}/{args.num_seed}", flush=True)
-        data = generate_quadratic_data(n, p, seed, rho=1.0, shift=10.0)
+        # One unbroken random stream per replication: the data, the starting
+        # point and the mini-batch indices are drawn from it in that order,
+        # exactly as the authors' notebooks do.  (Drawing the schedule from a
+        # freshly seeded stream instead -- as an earlier version of this script
+        # did -- gives a statistically equivalent but different realisation.)
+        rng = np.random.RandomState(seed)
+        V, bi_r, u = draw_quadratic_problem(n, p, rng)
+        data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
         Ai, bi, x_star, mu, initial = (data["Ai"], data["bi"], data["x_star"],
                                        data["mu"], data["initial"])
         gamma = adaptive_gamma(mu, args.alpha)
         gamma_mean[seed] = gamma
 
-        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False)
+        schedule = make_batch_schedule(n, batch_size, K, seed, replace=False,
+                                       rng=rng)
         # Every (gamma, alpha) pair replays the same mini-batches, so the batch
         # gradients are formed once per replication instead of once per sweep
         # entry.  The iterates are unchanged.
@@ -158,7 +180,12 @@ def main():
     # ------------------------------------------------------------------ #
     # Colours / markers / line styles are the ones used in the published
     # panels (read off Figures 2-4), so that a regenerated figure is
-    # recognisable next to the paper's.
+    # recognisable next to the paper's.  The canvas is the authors' as well:
+    # ``figsize=(4, 4)`` with the axes box spanning left=0.1 ... right=0.9
+    # and bottom=0.2 ... top=0.9, and ``markevery=0.3``.  The float
+    # ``markevery`` matters -- matplotlib spaces such markers by *arc length*
+    # along the curve, so the marker positions follow from the axes-box size
+    # (3.2 x 2.8 in) and are only reproducible with those parameters.
     # ------------------------------------------------------------------ #
     STYLE = {
         "SGD":           dict(color="#9467bd", marker="o", linestyle=":"),
@@ -187,10 +214,7 @@ def main():
         return [("sgd", False)] + [(b, False) for b in betas] + [("adap", True)]
 
     def plot_last_iterate(betas, err_m, fname):
-        fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
-                                 bottom=0.15, figure=fig)
-        ax = fig.add_subplot(spec[0])
+        fig, ax = _canvas()
         for key, is_adap in _legend_order(betas):
             if key == "sgd":
                 y, lab = (err_sgd ** 2).mean(axis=0), "SGD"
@@ -200,7 +224,7 @@ def main():
             else:
                 y = (err_m[:, :, betas.index(key)] ** 2).mean(axis=0)
                 lab = f"SGDM-{key}"
-            ax.plot(np.arange(K), y, label=lab, markevery=200, **STYLE[lab])
+            ax.plot(np.arange(K), y, label=lab, markevery=0.3, **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||x_t-x^*||^2$")
         ax.set_yscale("log")
@@ -223,20 +247,16 @@ def main():
     # indexes the momentum array with ``i`` instead of ``i + 4``).  The
     # published panel is reproduced faithfully here so that the figure matches
     # the paper; set FIG3B_HONEST = True to draw the curves the labels claim.
-    # See README.md, section 7.
     # ------------------------------------------------------------------ #
     FIG3B_HONEST = False
 
     def plot_averaged(n0, spec, fname):
         """Draw averaged curves.  ``spec`` is a list of (label, getter) pairs
         in legend order; ``getter()`` returns the (num_seed, T) error norms."""
-        fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec_g = gridspec.GridSpec(1, 1, left=0.17, right=0.95, top=0.95,
-                                   bottom=0.15, figure=fig)
-        ax = fig.add_subplot(spec_g[0])
+        fig, ax = _canvas()
         for lab, getter in spec:
             y = (getter() ** 2).mean(axis=0)      # mean over replications
-            ax.plot(np.arange(1, len(y) + 1), y, label=lab, markevery=250,
+            ax.plot(np.arange(1, len(y) + 1), y, label=lab, markevery=0.3,
                     **STYLE[lab])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||\bar{x}_{n_0+t}-x^*||^2$")
@@ -276,24 +296,21 @@ def main():
     # paper.
     # ------------------------------------------------------------------ #
     def plot_compare(n0, fname):
-        fig = plt.figure(figsize=(4, 4), dpi=150)
-        spec = gridspec.GridSpec(1, 1, left=0.19, right=0.95, top=0.95,
-                                 bottom=0.15, figure=fig)
-        ax = fig.add_subplot(spec[0])
+        fig, ax = _canvas()
         # Figure 4 draws SGD in blue (Figures 2-3 use the purple of STYLE).
         ax.plot(np.arange(K), (err_sgd ** 2).mean(axis=0), label="SGD",
-                markevery=250, **dict(STYLE["SGD"], color="#1f77b4"))
+                markevery=0.3, **dict(STYLE["SGD"], color="#1f77b4"))
         ax.plot(np.arange(K), (err_m_fig4 ** 2).mean(axis=0), label="SGDM-0.96",
-                markevery=250, **STYLE["SGDM-0.96"])
+                markevery=0.3, **STYLE["SGDM-0.96"])
         xa = np.arange(n0 + 1, n0 + 1 + ave_sgd[n0].shape[1])
         ax.plot(xa, (ave_sgd[n0] ** 2).mean(axis=0), label="Ave-SGD",
-                markevery=250, **STYLE["Ave-SGD"])
+                markevery=0.3, **STYLE["Ave-SGD"])
         ax.plot(xa, (ave_m_fig4[n0] ** 2).mean(axis=0), label="Ave-SGDM-0.96",
-                markevery=250, **STYLE["Ave-SGDM-0.96"])
+                markevery=0.3, **STYLE["Ave-SGDM-0.96"])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-2])
+        ax.set_ylim([1e-9, 2e-2])
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
