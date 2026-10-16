@@ -73,8 +73,13 @@ Per the OR journal instructions
 `LICENSE` (MIT) and `AUTHORS`, `src/` (one script per figure group, sharing
 `src/sgdm_core.py`), `scripts/run_all.sh`, `data/` (the archived Figure-16
 training logs plus a note on where the public MNIST / CIFAR-10 files come
-from), `docs/` (these statements), and `results/` (figures, raw arrays, run
-logs).
+from), and `docs/` (these statements). Running the scripts creates
+`results/<exp>/` with the figure for each panel and the raw `*.npz` arrays
+behind it; that directory is generated output and is not tracked here. Include
+it when packing the submission tarball — the OR instructions list `results`
+among the recommended sub-directories ("should contain any raw results from the
+paper, as well as any plots or figures"), which the tarball satisfies even
+though the repository itself does not carry the files.
 
 ## Anonymous link
 

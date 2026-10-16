@@ -17,9 +17,12 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 ├── src/               source code (one script per group of figures)
 ├── scripts/           run_all.sh — reproduce everything in one command
 ├── data/              public datasets + the archived Figure-16 logs
-├── docs/              submission statements
-└── results/           output figures and raw arrays
+└── docs/              submission statements
 ```
+
+Running the scripts creates `results/<exp>/`, with the figure for each paper
+panel and the raw `*.npz` arrays behind it. That directory is generated output
+and is not tracked; see section 4 for where each script writes.
 
 ## 2. Requirements
 
