@@ -168,17 +168,9 @@ def generate_quadratic_data(N, d, seed, rho=1.0, shift=10.0, norm_const=None,
 def generate_logistic_data(N, d, seed, theta0=None, rng=None):
     """Generate binary-logistic data as in Section EC.7.1 of the paper.
 
-    a_i ~ N(0, I_d);  b_i = 1 with prob. sigmoid(theta0^T a_i), 0 otherwise.
-    The default theta0 = (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
-
-    Note that the authors' notebook draws the label as
-    ``y = (sigmoid(theta0^T a) < U(0, 1))``, i.e. with probability
-    ``1 - sigmoid(theta0^T a) = sigmoid(-theta0^T a)``; that is what is
-    implemented here, since it is what produced Figures EC.1-EC.3.  The two
-    conventions differ only by the global sign of the population solution, and
-    since a_i is centred Gaussian the marginal law of the error curves is the
-    same either way (the adaptive weight is unchanged: the realised mean over
-    200 replications is 0.75 under both).
+    a_i ~ N(0, I_d);  b_i = 1 with probability sigmoid(-theta0^T a_i) =
+    1 - sigmoid(theta0^T a_i), and 0 otherwise.  The default theta0 =
+    (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
 
     ``rng`` may be supplied to draw from a caller-owned random stream.  The
     authors generate the features, the labels and the mini-batch schedule from

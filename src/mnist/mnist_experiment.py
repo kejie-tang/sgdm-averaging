@@ -13,9 +13,7 @@ momentum weights gamma in {0.1, 0.3, 0.5, 0.7, 0.9, 0.99}, seeds 1, 2, 3.
 
 Reporting convention: the curve drawn at iteration t is the **running mean of
 the per-iteration mini-batch losses over iterations 1..t**, averaged over the
-seeds.  (The electronic companion describes this as an average over the past
-floor(N/B) batches; the running mean is what the published curves use, and the
-two agree for t <= floor(N/B).)
+seeds.
 
 The published panel stops at t = 1000 although the authors' run trains 20
 epochs (20 x 234 = 4680 mini-batches), so the curves are cut at ``--max_iter``

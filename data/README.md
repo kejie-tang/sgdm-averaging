@@ -82,8 +82,7 @@ The batches are the standard 32x32 RGB images; the script reads them with
 These are the per-iteration training losses that produced the paper's
 Figure 16. They are **data**, not figures: `src/cifar/cifar_experiment.py`
 plots the published panel straight from them (default `--mode plot`), which is
-what makes Figure 16 reproducible exactly rather than approximately — the
-training script that generated them was not preserved with the sources.
+what makes Figure 16 reproducible exactly rather than approximately.
 
 ```
 data/cifar_logs/

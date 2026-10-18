@@ -8,13 +8,9 @@
 #
 # Run from anywhere; the script finds the repository root itself.
 #
-# The list below follows the OR instructions
-# (https://orjournal.github.io/PackageContents.html). Their sub-directory entry
-# reads: "results should contain any raw results from the paper, as well as any
-# plots or figures" -- which is why results/ is *in* the archive even though it
-# is not tracked by git (see .gitignore). Note that the instructions also say
-# "deviations are fine and there are no hard rules", so RAW=0 is still a
-# complete package: the figures are there and the arrays are regenerable.
+# results/ is generated output and is not tracked by git (see .gitignore), but
+# it goes into the archive.  RAW=0 drops the raw *.npz arrays, which are large
+# and do not compress; they are regenerable with scripts/run_all.sh.
 
 set -e
 cd "$(dirname "$0")/.."

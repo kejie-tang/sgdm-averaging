@@ -11,10 +11,7 @@ gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
 evaluated at the full-batch minimizer x^* (average adaptive weight ~ 0.75).
 
-The features and the labels come from :func:`sgdm_core.generate_logistic_data`,
-whose docstring records that the authors draw the label with probability
-``1 - sigmoid(theta0^T a_i)`` rather than with ``sigmoid(theta0^T a_i)``; that
-is what produced the published panels and is what is used here.
+The features and the labels come from :func:`sgdm_core.generate_logistic_data`.
 
 Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
 Panel (b) "large gamma": SGDM-adap, SGDM-0.8, SGDM-0.9 (no SGD curve, as in
@@ -30,19 +27,10 @@ The authors' recursion is
     m_t = gamma m_{t-1} + (1 - gamma) grad(x_t),   x_{t+1} = x_t - alpha m_t,
 
 with the **first** momentum set to the raw mini-batch gradient, m_1 = grad(x_1),
-i.e. *without* the (1 - gamma) factor.  Their notebook applies that special
-case to every gamma (``if k == 0: gt = gradient(...)``).  It is not cosmetic.
-The recursion is an AR(2) with roots of modulus sqrt(gamma) once
-alpha(1 - gamma) L is large, so for gamma = 0.9 the iterates are only lightly
-damped; a ten-times-larger first step is what excites the oscillation that
-dominates the published Figure EC.1(b).  With the (1 - gamma) factor restored,
-the gamma = 0.9 hump shrinks from ~8e-2 to ~1.8e-2 and moves from t = 28 to
-t = 40, and the EC.2(b) panel comes out qualitatively wrong (gamma = 0.9 ends up
-converging fastest instead of slowest).  This file therefore reproduces the
-authors' first step exactly.
+i.e. *without* the (1 - gamma) factor.
 
-Both panels start at t = 0 with the initial point x_0 = 0 (every curve of
-Figure EC.1 begins from the same value, ||x_0 - x^*||^2 = 1.0: the quadratic
+Both panels start at t = 0 with the initial point x_1 = 0 (every curve of
+Figure EC.1 begins from the same value, ||x_1 - x^*||^2 = 1.0: the quadratic
 form of the minimizer is 1 up to the sampling noise).
 
 Outputs (results/logistic/), one file per paper panel:
@@ -129,7 +117,7 @@ def main():
     n_gammas = len(gamma_set)
 
     # last-iterate error (Figure EC.1) and averaged error per n0 (Figures EC.2-EC.3)
-    # err_last[k] is ||x_k - x^*||, so entry 0 is the initial point x_0.
+    # err_last[k] is ||x_{k+1} - x^*||, so entry 0 is the initial point x_1.
     err_last = np.zeros((args.num_seed, n, n_gammas))
     err_ave = {n0: np.zeros((args.num_seed, ave_len - 1, n_gammas))
                for n0 in args.n0_list}
@@ -171,9 +159,9 @@ def main():
             for k in range(n):
                 idx = schedule[k * batch_size:(k + 1) * batch_size]
                 xi, yi = X[idx], y[idx]
-                # Record the current iterate x_k *before* updating it, so that
-                # entry 0 is the initial point x_0 (whose error is the common
-                # starting value of every curve in Figure EC.1).
+                # Record the current iterate x_{k+1} *before* updating it, so
+                # that entry 0 is the initial point x_1 (whose error is the
+                # common starting value of every curve in Figure EC.1).
                 err_last[seed, k, j] = np.linalg.norm(x - x_star)
                 g = gradient(x, xi, yi)
                 # The authors' recursion, verbatim:

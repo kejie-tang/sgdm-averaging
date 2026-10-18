@@ -18,13 +18,7 @@ Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
 
            ``--n_cov 500 --n0_cov 200`` are the settings for this panel: the
            transition of SGDM-0.9 falls between alpha = 2^-8 (~0.1) and
-           alpha = 2^-7 (~0.9), and the plateau sits at ~0.98.  Note where the
-           three curves fall back to zero: SGD between alpha = 2^-4 and 2^-3,
-           SGDM-0.8 between 2^-1 and 2^0, SGDM-0.9 between 2^0 and 2^1.  Those
-           are the linear stability limits of the recursions, alpha * L < 2 for
-           SGD and alpha * L < 2 (1 + gamma) / (1 - gamma) for SGDM (the
-           momentum term is damped by 1 - gamma), with L = 25.8 for this A --
-           not a failure of the normal approximation.
+           alpha = 2^-7 (~0.9), and the plateau sits at ~0.98.
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz

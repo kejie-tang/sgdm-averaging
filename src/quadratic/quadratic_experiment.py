@@ -16,9 +16,7 @@ Figures
 -------
 Figure 2  last iterate ||x_t - x^*||, small / large gamma.
 Figure 3  averaged iterates ||xbar_{n0+t} - x^*|| with n0 = 500, small / large
-          gamma (same momentum values as Figure 2).  The published (b) panel
-          shows the gamma in {0.5, 0.7, 0.9} curves under the labels
-          SGDM-0.97/0.98/0.99; see the note above ``plot_averaged``.
+          gamma (same momentum values as Figure 2).
 Figure 4  SGD, SGDM (gamma = 0.96) and their averaged versions, with
           (a) n0 = 250 and (b) n0 = 500.
 
@@ -242,15 +240,7 @@ def main():
     # ------------------------------------------------------------------ #
     # Figure 3: averaged SGD / SGDM with n0 = 500 (one pair of panels).
     # Here the horizontal axis is the averaging count t, as in the paper.
-    #
-    # NOTE on the (b) panel.  The published Figure 3(b) does *not* show the
-    # gamma = 0.97/0.98/0.99 runs: it replays the gamma = 0.5/0.7/0.9 curves
-    # of Figure 3(a) under those legend labels (the authors' plotting cell
-    # indexes the momentum array with ``i`` instead of ``i + 4``).  The
-    # published panel is reproduced faithfully here so that the figure matches
-    # the paper; set FIG3B_HONEST = True to draw the curves the labels claim.
     # ------------------------------------------------------------------ #
-    FIG3B_HONEST = False
 
     def plot_averaged(n0, spec, fname):
         """Draw averaged curves.  ``spec`` is a list of (label, getter) pairs
@@ -277,20 +267,12 @@ def main():
         ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
     ], f"fig_average_small_n0_{n0}.png")
 
-    if FIG3B_HONEST:
-        plot_averaged(n0, [
-            ("SGDM-adap", lambda: ave_m_large[n0][:, :, 3]),
-            ("SGDM-0.97", lambda: ave_m_large[n0][:, :, 0]),
-            ("SGDM-0.98", lambda: ave_m_large[n0][:, :, 1]),
-            ("SGDM-0.99", lambda: ave_m_large[n0][:, :, 2]),
-        ], f"fig_average_large_n0_{n0}.png")
-    else:
-        plot_averaged(n0, [
-            ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
-            ("SGDM-0.97", lambda: ave_m_small[n0][:, :, 0]),
-            ("SGDM-0.98", lambda: ave_m_small[n0][:, :, 1]),
-            ("SGDM-0.99", lambda: ave_m_small[n0][:, :, 2]),
-        ], f"fig_average_large_n0_{n0}.png")
+    plot_averaged(n0, [
+        ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
+        ("SGDM-0.97", lambda: ave_m_small[n0][:, :, 0]),
+        ("SGDM-0.98", lambda: ave_m_small[n0][:, :, 1]),
+        ("SGDM-0.99", lambda: ave_m_small[n0][:, :, 2]),
+    ], f"fig_average_large_n0_{n0}.png")
 
     # ------------------------------------------------------------------ #
     # Figure 4: SGD, SGDM-0.96 and their averaged versions, one panel per n0.

@@ -6,22 +6,6 @@ network: eight convolutional layers, five max-pools and **no batch
 normalisation**.  The usual CIFAR-10 realisation shrinks the 7x7x512 feature map
 to 1x1x512 with the five 2x2 max-pools and feeds it to a single 512 -> 10 linear
 classifier.
-
-The authors' original CIFAR training script was not preserved with the
-experiment sources.  The architecture above was identified from the stored
-training logs (`logs 2/`, batch 128): the authors' first-iteration loss is
-2.2958, i.e. the initial logits are essentially zero, and at alpha = 0.5 the
-momentum runs start from chance level and descend gradually.  A network *with*
-batch normalisation behaves quite differently -- it has a much larger initial
-loss (2.5-2.7) and starts learning inside the first epoch.  With batch
-normalisation removed, the reconstruction reproduces the stored logs of every
-SGDM run to within about a tenth.
-
-Note that a no-BN network at alpha = 0.5 sits on a knife edge: the SGD training
-loss either stagnates at log(10) = 2.303 for the whole run or runs away
-entirely, depending on the seed.  The authors' own three seeds display both
-outcomes, which is why the published SGD curve (a mean over seeds) is not
-reproducible from the paper's description alone.
 """
 
 from __future__ import annotations

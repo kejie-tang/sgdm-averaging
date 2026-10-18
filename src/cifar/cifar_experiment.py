@@ -11,9 +11,8 @@ three replications: 19,550 iterations = 50 epochs x 391 mini-batches of size
 under ``results/cifar/`` is made with.
 
 ``--mode train`` re-runs the experiment from scratch with the released
-reconstruction of the original trainer (``src/cifar/vgg.py``, VGG-11 without
-batch normalisation).  It needs PyTorch and the CIFAR-10 data
-(``--download``); see the Note below for how far it can be pushed.
+reconstruction of the trainer (``src/cifar/vgg.py``, VGG-11 without batch
+normalisation).  It needs PyTorch and the CIFAR-10 data (``--download``).
 
 Setting
 -------
@@ -25,8 +24,8 @@ gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  The realised PyTorch step is
 ``lr = 0.5`` for every momentum weight, so the learning rate is *not* rescaled
 by (1 - gamma) as it is in the convex experiments.
 
-There is no batch normalisation: the paper cites the original VGG-11, and this
-is what the stored logs imply (see ``vgg.py``).
+There is no batch normalisation: the paper cites the original VGG-11 of
+Simonyan & Zisserman (2014).
 
 Reporting convention
 --------------------
@@ -37,27 +36,12 @@ replaced by 1000 before averaging (so that a diverged seed contributes a large
 but finite value rather than an NaN curve), and the final curve is clipped to
 [-10, 100].
 
-Note on ``--mode train``
-------------------------
-The authors' original CIFAR training script was not preserved with the sources,
-so ``vgg.py`` and the training loop below are a reconstruction from the paper's
-description and the stored logs (architecture, learning rate, epochs, batches
-per epoch, momentum weights and the reporting rule).
-
-With the correct (no-BN) architecture the three SGDM curves of a fresh run
-track the archived logs closely (a mean absolute deviation of roughly 0.1-0.2
-in the running mean in our runs).  The SGD curve is a different matter: at
-alpha = 0.5 the no-BN network is bistable.  In the archived logs two of the three seeds sit at chance
-level log(10) = 2.3036 for all 50 epochs and one escapes around epoch 6 and
-descends to a per-epoch mean of ~0.45, so their mean falls from 2.30 to ~1.5;
-that single seed then blows up at the start of epoch 48 (iteration 18,447),
-which is what produces the spike at the right edge of the published panel.
-Re-running the released reconstruction with the same three seeds lands on the
-other mixture -- all three escape smoothly and none blows up -- so its
-seed-mean curve falls from 2.30 to ~0.79 instead, without the spike.  Matching
-the published SGD curve would require the original seeds, weight initialisation
-and data-augmentation RNG, none of which are recorded; that is why the released
-``fig_cifar.png`` is drawn from the archived logs.
+Training from scratch
+---------------------
+``vgg.py`` and the training loop below reconstruct the trainer that produced
+the archived logs: architecture, learning rate, epochs, batches per epoch,
+momentum weights and the reporting rule.  The released figure is drawn from
+the logs; this mode is there to re-run the experiment end to end.
 
 Data
 ----
