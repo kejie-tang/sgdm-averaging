@@ -90,14 +90,14 @@ def hessian(theta, X, y):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
-    ap.add_argument("--alpha", type=float, default=0.5)
-    ap.add_argument("--num_seed", type=int, default=200)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
+    ap.add_argument("--alpha", type=float, default=0.5, help="learning rate alpha")
+    ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
     # the paper uses n0 = 10 for Figure EC.2 and n0 = 40 for Figure EC.3
-    ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40])
-    ap.add_argument("--ave_len", type=int, default=100)
+    ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40], help="averaging burn-in n0, one value per panel")
+    ap.add_argument("--ave_len", type=int, default=100, help="number of averaged points reported per n0")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "logistic"))

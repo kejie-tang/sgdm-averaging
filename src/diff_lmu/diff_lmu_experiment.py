@@ -3,7 +3,7 @@ Figure 6: performance under different condition numbers L/mu.
 
 Setting
 -------
-Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10}.
+Quadratic loss with A_i = rho * V_i V_i^T + 10 I_d for rho in {1, 5, 10}.
 The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
 are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS``).  Otherwise the
 setup of Section 5.1: N = 20,000, d = 10, batch
@@ -59,19 +59,25 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
 # the rho = 5 and rho = 10 entries agree to one decimal, the rho = 1 entry does
 # not.  The labels below are what the paper's caption and legend say, so the
 # released figure matches the published one.
-KAPPA_LABELS = [3.5, 9.9, 14.7]
+KAPPA_LABELS_PAPER = [3.5, 9.9, 14.7]
+KAPPA_LABELS_MEASURED = [3.31, 9.86, 14.71]
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
-    ap.add_argument("--n", type=int, default=1500)
-    ap.add_argument("--num_seed", type=int, default=200)
-    ap.add_argument("--alpha", type=float, default=0.001)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
-    ap.add_argument("--n0", type=int, default=250)
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
+    ap.add_argument("--n", type=int, default=1500, help="number of iterations n")
+    ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
+    ap.add_argument("--alpha", type=float, default=0.001, help="learning rate alpha")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
+    ap.add_argument("--n0", type=int, default=250, help="averaging burn-in n0")
     ap.add_argument("--rho_list", type=float, nargs="+", default=[1.0, 5.0, 10.0])
+    ap.add_argument("--kappa_labels", choices=["paper", "measured"],
+                    default="paper",
+                    help="legend values of L/mu: the paper's rounded "
+                         "3.5/9.9/14.7 (default) or the realised "
+                         "3.31/9.86/14.71")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "diff_lmu"))
@@ -84,6 +90,8 @@ def main():
         raise ValueError(f"n0={n0} must be smaller than n={n}.")
     batch_size = int(round(args.batch_frac * N))
     rho_list = list(args.rho_list)
+    kappa_labels = (KAPPA_LABELS_MEASURED if args.kappa_labels == "measured"
+                    else KAPPA_LABELS_PAPER)
     ave_len = n - n0 - 1
 
     err_sgd = np.zeros((args.num_seed, n, len(rho_list)))
@@ -146,16 +154,18 @@ def main():
         # The published panels list the last-iterate curves first and the
         # averaged ones after, so the two loops are separate.
         for j, rho in enumerate(rho_list):
-            cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
+            cond = (kappa_labels[j] if j < len(kappa_labels)
+                    else kappa_mean[j])
             ax.plot(np.arange(n), (err[:, :, j] ** 2).mean(axis=0),
-                    label=rf"{last_label}-$L/\mu={cond:.1f}$",
+                    label=rf"{last_label}-$L/\mu={cond:g}$",
                     marker=marker, markevery=0.3,
                     linestyle=":", color=colors[j])
         for j, rho in enumerate(rho_list):
-            cond = KAPPA_LABELS[j] if j < len(KAPPA_LABELS) else kappa_mean[j]
+            cond = (kappa_labels[j] if j < len(kappa_labels)
+                    else kappa_mean[j])
             ya = (ave[:, :, j] ** 2).mean(axis=0)
             ax.plot(np.arange(n0 + 1, n0 + 1 + ya.size), ya,
-                    label=rf"{ave_label}-$L/\mu={cond:.1f}$",
+                    label=rf"{ave_label}-$L/\mu={cond:g}$",
                     marker=marker, markevery=0.3,
                     linestyle="-", color=colors[j], zorder=5)
         ax.set_xlabel(r"$t$")

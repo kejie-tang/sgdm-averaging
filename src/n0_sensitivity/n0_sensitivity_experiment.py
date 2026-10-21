@@ -4,7 +4,7 @@ Figure 5: sensitivity of the averaged iterates to the burn-in n0.
 Setting
 -------
 Quadratic loss (Section 5.1 of the paper): N = 20,000, d = 10,
-A_i = V_i^T V_i + 10 I_d (rho = 1, so the average condition number is L/mu =
+A_i = V_i V_i^T + 10 I_d (rho = 1, so the average condition number is L/mu =
 3.5), batch size B = 0.2 N, learning rate alpha = 0.001, n = 1500 iterations,
 200 independent replications.  The momentum weight is fixed at gamma = 0.96
 (the average of the adaptive weight over the replications).
@@ -52,15 +52,15 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
-    ap.add_argument("--n", type=int, default=1500)
-    ap.add_argument("--num_seed", type=int, default=200)
-    ap.add_argument("--alpha", type=float, default=0.001)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
-    ap.add_argument("--gamma", type=float, default=0.96)
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
+    ap.add_argument("--n", type=int, default=1500, help="number of iterations n")
+    ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
+    ap.add_argument("--alpha", type=float, default=0.001, help="learning rate alpha")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
+    ap.add_argument("--gamma", type=float, default=0.96, help="momentum weight gamma (0 is SGD)")
     ap.add_argument("--n0_list", type=int, nargs="+",
-                    default=[250, 500, 750, 1000])
+                    default=[250, 500, 750, 1000], help="averaging burn-in n0, one value per panel")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results",

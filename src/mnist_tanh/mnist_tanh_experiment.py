@@ -159,12 +159,12 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gamma", type=float, nargs="+",
-                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99])
+                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99], help="momentum weight gamma (0 is SGD)")
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
     ap.add_argument("--lr", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch_size", type=int, default=256)
-    ap.add_argument("--n0_list", type=int, nargs="+", default=[234, 468])
+    ap.add_argument("--n0_list", type=int, nargs="+", default=[234, 468], help="averaging burn-in n0, one value per panel")
     ap.add_argument("--max_iter", type=int, default=1000,
                     help="number of iterations that are plotted along t")
     ap.add_argument("--data-root", type=str, default=None)

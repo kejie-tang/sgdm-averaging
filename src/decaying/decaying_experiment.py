@@ -3,7 +3,7 @@ Figure 7: decaying learning rates.
 
 Setting
 -------
-Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i^T V_i + 10 I_d,
+Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i V_i^T + 10 I_d,
 batch size B = 0.2 N, n = 2000 iterations, 200 replications, momentum weight
 gamma = 0.96.  The learning rate decays as
 
@@ -59,14 +59,14 @@ CURVES = [("SGD", 0, 0, ":"),
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
-    ap.add_argument("--n", type=int, default=2000)
-    ap.add_argument("--num_seed", type=int, default=200)
-    ap.add_argument("--alpha0", type=float, default=0.001)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
-    ap.add_argument("--gamma", type=float, default=0.96)
-    ap.add_argument("--n0_list", type=int, nargs="+", default=[250, 500])
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
+    ap.add_argument("--n", type=int, default=2000, help="number of iterations n")
+    ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
+    ap.add_argument("--alpha0", type=float, default=0.001, help="alpha0 of the decaying schedule")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
+    ap.add_argument("--gamma", type=float, default=0.96, help="momentum weight gamma (0 is SGD)")
+    ap.add_argument("--n0_list", type=int, nargs="+", default=[250, 500], help="averaging burn-in n0, one value per panel")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "decaying"))
@@ -79,8 +79,8 @@ def main():
     if n0_list[-1] >= n:
         raise ValueError(f"n0={n0_list[-1]} must be smaller than n={n}.")
 
-    err_sgd = np.zeros((args.num_seed, n))
-    err_sgdm = np.zeros((args.num_seed, n))
+    err_sgd = {n0: np.zeros((args.num_seed, n)) for n0 in n0_list}
+    err_sgdm = {n0: np.zeros((args.num_seed, n)) for n0 in n0_list}
     ave_sgd = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
     ave_sgdm = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
 
@@ -98,26 +98,26 @@ def main():
         # once per replication and replayed by every panel / method.
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
 
-        # the schedule depends on n0, so each panel needs its own run
+        # The learning-rate schedule alpha_t = alpha0*(max{n0,t})^{-1/2} depends
+        # on n0, so each panel is a different run and gets its own last-iterate
+        # curve as well as its own averaged curve.
         for n0 in n0_list:
             alphas = decaying_schedule(n0, n, args.alpha0)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
                            alphas, n, A_seq=A_seq, b_seq=b_seq)
             ave_sgd[n0][seed] = averaged_errors(traj, x_star, n0, n - n0)
-            if n0 == n0_list[0]:
-                err_sgd[seed] = last_iterate_errors(traj, x_star)
+            err_sgd[n0][seed] = last_iterate_errors(traj, x_star)
 
             traj_m = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
                               alphas, args.gamma, n, A_seq=A_seq, b_seq=b_seq)
             ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, n - n0)
-            if n0 == n0_list[0]:
-                err_sgdm[seed] = last_iterate_errors(traj_m, x_star)
+            err_sgdm[n0][seed] = last_iterate_errors(traj_m, x_star)
 
     # ------------------------------------------------------------------ #
-    # One panel per n0.  The last-iterate curves are the same across panels
-    # in the paper's layout; here they are recomputed per panel so that the
-    # stored arrays are self-consistent.
+    # One panel per n0.  Both the decaying schedule and the burn-in depend on
+    # n0, so every curve in a panel -- the last iterate included -- comes from
+    # that panel's own run.
     # ------------------------------------------------------------------ #
     def _panel(n0, fname):
         fig = plt.figure(figsize=(4, 4), dpi=150)
@@ -126,9 +126,9 @@ def main():
         ax = fig.add_subplot(spec[0])
         for label, ci, mi, ls in CURVES:
             if label == "SGD":
-                y, x = (err_sgd ** 2).mean(axis=0), np.arange(n)
+                y, x = (err_sgd[n0] ** 2).mean(axis=0), np.arange(n)
             elif label == "SGDM-0.96":
-                y, x = (err_sgdm ** 2).mean(axis=0), np.arange(n)
+                y, x = (err_sgdm[n0] ** 2).mean(axis=0), np.arange(n)
             elif label == "Ave-SGD":
                 y = (ave_sgd[n0] ** 2).mean(axis=0)
                 x = np.arange(n0 + 1, n0 + 1 + y.size)
@@ -148,10 +148,11 @@ def main():
     for n0 in n0_list:
         _panel(n0, f"fig_decay_n0_{n0}.png")
 
-    arrays = dict(err_sgd=err_sgd, err_sgdm=err_sgdm,
-                  n0_list=np.array(n0_list), gamma=args.gamma,
+    arrays = dict(n0_list=np.array(n0_list), gamma=args.gamma,
                   alpha0=args.alpha0)
     for n0 in n0_list:
+        arrays[f"err_sgd_{n0}"] = err_sgd[n0]
+        arrays[f"err_sgdm_{n0}"] = err_sgdm[n0]
         arrays[f"ave_sgd_{n0}"] = ave_sgd[n0]
         arrays[f"ave_sgdm_{n0}"] = ave_sgdm[n0]
     np.savez_compressed(os.path.join(args.out, "decaying_raw.npz"), **arrays)

@@ -1,31 +1,52 @@
 """
 Figure 16: SGD and SGDM on CIFAR-10 with a VGG-11 network.
 
-The published panel is reproduced **exactly** in the default ``--mode plot``.
-The four curves are drawn from the per-iteration training-loss series that
-generated the paper's Figure 16; those series were recorded by the authors'
-original training script and are archived under ``data/cifar_logs/``.  Each
-file holds, for one momentum weight, the per-iteration training loss of the
-three replications: 19,550 iterations = 50 epochs x 391 mini-batches of size
-128.  Plotting straight from the archive is what the ``fig_cifar.png`` shipped
-under ``results/cifar/`` is made with.
+Two modes, because the four curves do not all reproduce by retraining:
 
-``--mode train`` re-runs the experiment from scratch with the released
-reconstruction of the trainer (``src/cifar/vgg.py``, VGG-11 without batch
-normalisation).  It needs PyTorch and the CIFAR-10 data (``--download``).
+``--mode plot`` (default)
+    Draws the published panel from ``data/cifar_logs/``: the per-iteration
+    training losses recorded by the authors' own runs, three seeds per momentum
+    weight, 19,550 iterations each (50 epochs x 391 mini-batches of size 128).
+    This is the only way to obtain the **SGD** curve exactly -- see below.
+
+``--mode train``
+    Re-runs the experiment from scratch with the released trainer
+    (``src/cifar/vgg.py``, VGG-11 without batch normalisation).  The three SGDM
+    curves come out close to the published ones (mean |diff| in the running-mean
+    loss: 0.008 at gamma = 0.7, 0.07 at 0.9, 0.09 at 0.99).  Needs PyTorch and
+    the CIFAR-10 data (``--download``).
+
+Why the SGD curve cannot be retrained
+-------------------------------------
+Without batch normalisation an lr of 0.5 leaves SGD bistable: a run either sits
+at the chance loss (log 10 = 2.3026) for the whole 19,550 iterations or escapes
+to ~0.3-0.6, and *when* it escapes is chaotic.  In the authors' three seeds one
+escaped at t = 1862 and then diverged (that is the spike at the right edge of
+the published panel), one escaped at t = 4122 and still ended near 2.31, and one
+never escaped.  A retrain escapes at different times, or not at all, and the
+result is not even bit-reproducible on one GPU.  Since the panel plots the mean
+over the three seeds, its SGD curve is set by which seed escaped first -- a
+historical accident of that particular run.  ``data/cifar_logs/`` stores it;
+nothing can regenerate it.
 
 Setting
 -------
 CIFAR-10 (Krizhevsky et al. 2009): N = 50,000 training images of size 32x32
 with three colour channels, 10 classes.  The loss is f_i(X) = H(VGG(X), b_i),
 the multi-class cross-entropy.  Learning rate alpha = 0.5 and momentum weights
-gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  The realised PyTorch step is
-``SGD(lr = 0.5, momentum = gamma)``: the authors' log prints the same
-``lr = 0.5`` for every momentum weight, so the learning rate is *not* rescaled
-by (1 - gamma) as it is in the convex experiments.
+gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  The step is
+``SGD(lr = alpha*(1 - gamma), momentum = gamma)``: ``torch.optim.SGD`` scales
+its momentum buffer by ``lr``, so that pair realises the paper's recursion
+``m = gamma*m + (1-gamma)*g, x -= alpha*m`` (README section 6.2 and
+``docs/momentum_convention.md``, which also derives the correspondence).
+Training with the unscaled ``lr = alpha`` makes the effective step
+``alpha/(1-gamma)`` -- ten times too large at gamma = 0.9 -- and the SGDM runs
+then sit at chance level.
 
 There is no batch normalisation: the paper cites the original VGG-11 of
-Simonyan & Zisserman (2014).
+Simonyan & Zisserman (2014), and ``vgg.py`` uses that network's three-layer
+classifier head (4096 -> 4096 -> 10 with dropout), sized for a 1x1 feature map
+because CIFAR-10 images are 32x32 rather than 224x224.
 
 Reporting convention
 --------------------
@@ -35,13 +56,6 @@ over iterations 0..t-1, taken over the three seeds.  A non-finite loss is
 replaced by 1000 before averaging (so that a diverged seed contributes a large
 but finite value rather than an NaN curve), and the final curve is clipped to
 [-10, 100].
-
-Training from scratch
----------------------
-``vgg.py`` and the training loop below reconstruct the trainer that produced
-the archived logs: architecture, learning rate, epochs, batches per epoch,
-momentum weights and the reporting rule.  The released figure is drawn from
-the logs; this mode is there to re-run the experiment end to end.
 
 Data
 ----
@@ -60,7 +74,6 @@ Run:  python src/cifar/cifar_experiment.py
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import pickle
 import sys
@@ -114,7 +127,8 @@ def curve_from_logs(csv_path):
     """Load one archived log file and return its Figure-16 curve."""
     table = np.loadtxt(csv_path, delimiter=",", skiprows=1)   # iteration + 3 seeds
     seeds = table[:, 1:]                                      # (n_iter, 3)
-    seeds = np.nan_to_num(seeds, nan=DIVERGED, posinf=DIVERGED)
+    seeds = np.nan_to_num(seeds, nan=DIVERGED, posinf=DIVERGED,
+                          neginf=DIVERGED)
     mean_loss = seeds.mean(axis=1)                            # average over seeds
     return np.clip(np.nan_to_num(moving_ave2(mean_loss), nan=CLIP[1]),
                    CLIP[0], CLIP[1])
@@ -218,7 +232,12 @@ def run_one(seed, gamma, lr, epochs, batch_size, X, y, device, max_iter=None):
 
     net = VGG11(10).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=gamma)
+    # torch.optim.SGD scales its momentum buffer by lr, so lr = alpha*(1-gamma)
+    # realises the paper's recursion m = gamma*m + (1-gamma)*g, x -= alpha*m.
+    # With the unscaled lr = alpha the effective step is alpha/(1-gamma), ten
+    # times too large at gamma = 0.9, and the SGDM runs stay at chance level.
+    optimizer = optim.SGD(net.parameters(), lr=lr * (1.0 - gamma),
+                          momentum=gamma)
 
     losses = []
     t = 0
@@ -242,7 +261,7 @@ def run_one(seed, gamma, lr, epochs, batch_size, X, y, device, max_iter=None):
     return np.array(losses)
 
 
-def train_curves(args, device):
+def train_curves(args, device, gammas):
     X, y = load_cifar10(args.data_root, download=args.download)
     print(f"[cifar] loaded {X.shape[0]} training images")
 
@@ -272,12 +291,12 @@ def draw(curves, out_png):
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
-    for j, gamma in enumerate(GAMMAS):
+    for j, gamma in enumerate(curves):
         label = "SGD" if gamma == 0.0 else f"SGDM-{gamma}"
         yy = curves[gamma]
-        ax.plot(np.arange(len(yy)), yy, label=label, marker=MARKERS[j],
+        ax.plot(np.arange(len(yy)), yy, label=label, marker=MARKERS[j % 4],
                 markevery=0.3,
-                linestyle=LINESTYLES[j % 4], color=COLORS[j])
+                linestyle=LINESTYLES[j % 4], color=COLORS[j % 4])
     ax.set_xlabel(r"$t$")
     ax.set_ylabel("Training Loss")
     ax.set_ylim((0.2, 2.6))
@@ -323,11 +342,13 @@ def main():
         import torch
         device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
         print(f"[cifar] device = {device}")
-        curves = train_curves(args, device)
+        # SGD (gamma = 0) is always included; the requested weights follow it.
+        gammas = [0.0] + [g for g in args.gamma if g != 0.0]
+        curves = train_curves(args, device, gammas)
 
     draw(curves, os.path.join(args.out, "fig_cifar.png"))
     np.savez_compressed(os.path.join(args.out, "cifar_losses.npz"),
-                        **{f"gamma_{g}": curves[g] for g in GAMMAS})
+                        **{f"gamma_{g}": curves[g] for g in curves})
     print(f"[cifar] results saved to {os.path.abspath(args.out)}")
 
 

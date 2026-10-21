@@ -180,7 +180,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gamma", type=float, nargs="+",
-                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99])
+                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99], help="momentum weight gamma (0 is SGD)")
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
     ap.add_argument("--lr", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=5)

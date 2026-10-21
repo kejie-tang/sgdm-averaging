@@ -3,7 +3,7 @@ Figures 9-11: sensitivity of SGD and SGDM to the learning rate.
 
 Setting
 -------
-N = 20,000, d = 10, A_i = (V_i^T V_i + 1.03 I)/1.04 (so the eigenvalues lie in
+N = 20,000, d = 10, A_i = (V_i V_i^T + 1.03 I)/1.04 (so the eigenvalues lie in
 [0, 1]), batch size B = 0.2 N, b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.
 
 Figure 9 (last iterate, ||x_t - x^*||^2):
@@ -56,8 +56,9 @@ SGDM_CURVE_EXPS = (-9, -7, -5, -3, -1)
 FINAL_EXPS = tuple(range(-11, 3))          # Figure 10 x-axis: 2^-11 ... 2^2
 
 # Learning rates above the stability threshold make the iterates overflow; the
-# paper's Figure 10 shows them as a plateau at 10^0, so inf/nan errors are
-# replaced by 1.
+# paper's Figure 10 shows them as a plateau at 10^0, so the plotted value is
+# capped at 1.  Both the plotted (capped) and the raw values are stored: the
+# capped array feeds the figure, ``*_raw`` keeps what the recursion produced.
 DIVERGED_CAP = 1.0
 
 # (marker, linestyle) per curve, in the order of SGD_CURVE_EXPS /
@@ -114,8 +115,8 @@ def _run_grid(A_seq, b_seq, x_star, initial, alphas, gammas, n, T, n0):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
     ap.add_argument("--n", type=int, default=1000,
                     help="number of iterations per run (>= n0 + 500 for "
                          "Figure 11 and >= T + 1 for Figures 9-10)")
@@ -123,9 +124,9 @@ def main():
                     help="reporting horizon for the last iterate (Figures 9-10)")
     ap.add_argument("--n0", type=int, default=500,
                     help="averaging burn-in for Figure 11")
-    ap.add_argument("--num_seed", type=int, default=200)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
-    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
+    ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9], help="momentum weights of the coverage sweep")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "sensitivity"))
@@ -147,9 +148,11 @@ def main():
     gamma_all = [0.0] + list(args.gammas)
     gamma_sgdm = args.gammas[0]          # the single weight of the SGDM panels
 
-    # squared error at index T, per replication
+    # squared error at index T, per replication: plotted (capped) and raw
     err_sgd = np.zeros((args.num_seed, n_alphas))
     err_sgdm = np.zeros((args.num_seed, n_gammas, n_alphas))
+    err_sgd_raw = np.full((args.num_seed, n_alphas), np.nan)
+    err_sgdm_raw = np.full((args.num_seed, n_gammas, n_alphas), np.nan)
     # last-iterate and averaged curves, only for the panel exponents
     last_sgd = np.zeros((args.num_seed, T + 1, len(SGD_CURVE_EXPS)))
     last_sgdm = np.zeros((args.num_seed, T + 1, len(SGDM_CURVE_EXPS)))
@@ -183,8 +186,10 @@ def main():
 
         for ai_, alpha in enumerate(final_alphas):
             err_sgd[seed, ai_] = _cap(final[(0.0, alpha)])
+            err_sgd_raw[seed, ai_] = final[(0.0, alpha)]
             for gi_, gamma in enumerate(args.gammas):
                 err_sgdm[seed, gi_, ai_] = _cap(final[(gamma, alpha)])
+                err_sgdm_raw[seed, gi_, ai_] = final[(gamma, alpha)]
 
         for ai_, e in enumerate(SGD_CURVE_EXPS):
             alpha = 2.0 ** e
@@ -285,6 +290,7 @@ def main():
 
     np.savez_compressed(os.path.join(args.out, "sensitivity_raw.npz"),
                         err_sgd=err_sgd, err_sgdm=err_sgdm,
+                        err_sgd_raw=err_sgd_raw, err_sgdm_raw=err_sgdm_raw,
                         last_sgd=last_sgd, last_sgdm=last_sgdm,
                         ave_sgd=ave_sgd, ave_sgdm=ave_sgdm,
                         final_exps=np.array(FINAL_EXPS),

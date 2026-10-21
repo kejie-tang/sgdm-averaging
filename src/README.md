@@ -13,7 +13,7 @@ One sub-directory per group of figures. All scripts import the shared module
 | `clt/` | 8, 12 | `python src/clt/clt_experiment.py` |
 | `sensitivity/` | 9, 10, 11 | `python src/sensitivity/sensitivity_experiment.py` |
 | `mnist_tanh/` | 13, 14, 15 | `python src/mnist_tanh/mnist_tanh_experiment.py --download` |
-| `cifar/` | 16 | `python src/cifar/cifar_experiment.py` (from `data/cifar_logs/`; `--mode train --download` to re-train) |
+| `cifar/` | 16 | `python src/cifar/cifar_experiment.py` (published panel from `data/cifar_logs/`; `--mode train --download` to re-train) |
 | `logistic/` | EC.1, EC.2, EC.3 | `python src/logistic/logistic_experiment.py` |
 | `mnist/` | EC.4 | `python src/mnist/mnist_experiment.py --download` |
 
@@ -33,7 +33,11 @@ Two conventions are easy to get wrong and are spelled out where they bite:
 * trajectories are **zero-based** -- `traj[k]` is the paper's `x_{k+1}`, so
   `traj[0]` is the initial point `x_1`;
 * an `alpha` (or `gamma`) argument that is a *sequence* is read per iteration,
-  which is how Figure 7's decaying learning rate is expressed.
+  which is how Figure 7's decaying learning rate is expressed;
+* `averaged_errors` accumulates from `traj[n0 + 1]` and reports n - n0 - 1
+  points, which is the authors' convention; `averaged_errors_shifted` is the
+  same average with the sum starting at `x_{n0+1}` (n - n0 points) and is not
+  used by any figure.
 
 ## The shared module `sgdm_core.py`
 
@@ -44,14 +48,14 @@ experiments:
 | Function | Purpose |
 |---|---|
 | `draw_quadratic_problem` | the raw draws `V = rand(N, d, d)`, `b_i = rand(N, d, 1)`, `u = rand(d, 1)` from a caller-owned `rng` |
-| `build_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
+| `build_quadratic_data` | `A_i = rho V_i V_i^T + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
 | `generate_quadratic_data` | `draw_quadratic_problem` + `build_quadratic_data` in one call (kept for convenience; `rng=` passthrough supported) |
 | `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)`; accepts a caller-owned `rng` so the features, labels and batches can be drawn from one stream |
 | `make_batch_schedule` | the pre-sampled index sequence of length `n * batch_size`, shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
 | `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
-| `averaged_errors` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` starts at `x_{n0+1}`, matching `xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j` |
-| `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities |
+| `averaged_errors` / `averaged_errors_shifted` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` reproduces the authors' accumulation, `averaged_errors_shifted` is the same average displaced by one iterate |
+| `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities; `asymptotic_covariance(..., replace=False)` applies the finite-population factor `(N-B)/(N-1)` for without-replacement batches (opt-in via `--fpc` in the CLT script) |
 
 `batch_gradient_sequence` is a pure speed-up: a learning-rate / momentum sweep
 replays the *same* mini-batches, so the batch gradients are formed once per
@@ -114,8 +118,13 @@ figure line up with the published one:
   `cifar/logs 2/`), `cifar/logs 2/` (training logs, incl. `num.log`, which
   records the optimizer call). The four series behind the published panel ship
   as `data/cifar_logs/`, which is what `cifar_experiment.py` plots by default.
-  The training script itself was lost; the architecture was recovered from the
-  logs (see `cifar/vgg.py`) and re-implemented behind `--mode train`.
+  The training script itself was lost; the architecture and the step were
+  recovered from the authors' other code and from the logs, and re-implemented
+  behind `--mode train`: `cifar/vgg.py` uses VGG-11 with the original
+  three-layer head (as in the authors' `models/resnext.py`), and the step is
+  `SGD(lr = α(1-γ), momentum = γ)`.  That reproduces the three SGDM curves; the
+  SGD curve cannot be re-trained because α = 0.5 SGD is bistable without batch
+  normalisation (see `README.md` section 4).
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb` (averaging,
   moments) and `...的副本.ipynb` (n₀ = 20 variant). The scripts reproduce the
   authors' own recursion, including the special first momentum `g_1 = grad(x_1)`

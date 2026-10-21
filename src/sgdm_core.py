@@ -38,8 +38,11 @@ a line of code can be read against the text directly:
 Conventions
 -----------
 Quadratic loss (Eq. (eq:quadratic) of the paper):
-    f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i^T V_i + shift * I_d
-with x^* = -(mean_i A_i)^{-1} (mean_i b_i).
+    f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i V_i^T + shift * I_d
+with x^* = -(mean_i A_i)^{-1} (mean_i b_i).  The paper writes the quadratic
+form as V_i^T V_i; for the square V_i drawn here the two products have the same
+eigenvalues but are different matrices, and the release keeps V_i V_i^T, which
+is what the authors' notebooks compute (so the figures reproduce them).
 
 SGDM update (Eq. (sgdm) of the paper) with momentum weight gamma:
     m_t = gamma * m_{t-1} + (1 - gamma) g_eta_t(x_t)
@@ -102,12 +105,13 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         Scale of the low-rank part of A_i, controls the condition number L/mu.
     shift : float
         Ridge added to each A_i (``+shift * I``).  With rho=1, shift=10 the
-        average condition number is L/mu = 35/10, matching Section 5.1.
+        average condition number is L/mu = 3.31, close to the 3.5 quoted in
+        Section 5.1.
     norm_const : float or None
-        If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
+        If given, divide ``(rho * V_i V_i^T + shift * I)`` by this constant
         before forming A, b and x^*.  The sensitivity experiment (Section 5.2)
         uses ``rho=1, shift=1.03, norm_const=1.04``, i.e. the authors'
-        ``(V_i^T V_i + 1.03 I)/1.04``.
+        ``(V_i V_i^T + 1.03 I)/1.04``.
 
     Returns
     -------
@@ -253,6 +257,19 @@ def _step_size(alpha, k):
     return alpha[k]
 
 
+def _weights(gamma, k):
+    """Return ``(gamma_k, 1 - gamma_k)``, the momentum weights at iteration
+    ``k``.
+
+    ``gamma`` may be a scalar (constant momentum weight) or a sequence of
+    length at least ``k + 1`` (a momentum weight that changes over time).
+    """
+    if np.isscalar(gamma):
+        return gamma, 1.0 - gamma
+    g = gamma[k]
+    return g, 1.0 - g
+
+
 def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, n,
             A_seq=None, b_seq=None):
     """Last-iterate SGD. Returns the (n, d, 1) trajectory.
@@ -282,7 +299,8 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, n,
              A_seq=None, b_seq=None):
     """Last-iterate SGDM. Returns the (n, d, 1) trajectory.
 
-    ``alpha`` is either a scalar or a length-n per-iteration schedule.
+    ``alpha`` and ``gamma`` are each either a scalar or a length-n
+    per-iteration schedule.
     ``A_seq``/``b_seq`` behave as in :func:`run_sgd`.
     """
     d = initial.shape[0]
@@ -297,7 +315,8 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, n,
         else:
             A_batch, b_batch = A_seq[k], b_seq[k]
         traj[k] = x
-        m = gamma * m + (1.0 - gamma) * (A_batch @ x + b_batch)
+        g, one_minus_g = _weights(gamma, k)
+        m = g * m + one_minus_g * (A_batch @ x + b_batch)
         x = x - _step_size(alpha, k) * m
     return traj
 
@@ -315,20 +334,49 @@ def decaying_schedule(n0, n, alpha0):
 
 
 def averaged_errors(traj, x_star, n0, T):
-    """|| mean_{j=n0+1}^{n0+t} x_j - x^* || for t = 1..T.
+    """|| xbar_{n0+t} - x^* || for t = 1..T, the averaged-iterate curves.
 
     ``traj`` is the (n, d, 1) last-iterate trajectory with ``traj[k] = x_{k+1}``
     (see the module docstring), ``n0`` the burn-in and ``T`` the number of
-    averaged increments to report.
-    The first reported point is x_{n0+1}, as in the paper's definition
-    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j, so at most n - n0 - 1 points
-    can be produced.
+    averaged increments to report.  At most n - n0 - 1 points are produced.
+
+    The running sum starts at ``traj[n0 + 1]``.  That is the convention the
+    authors' notebooks use -- they accumulate the iterate *after* the update
+    has been applied, and divide by ``k - n0`` in the same iteration -- and it
+    is what the published averaged panels are drawn from.  It equals the
+    definition xbar_{n0+t} = (1/t) sum_{j=n0+2}^{n0+t+1} x_j, i.e. the same
+    average shifted by one iterate; see :func:`averaged_errors_shifted` for the
+    variant whose sum starts at x_{n0+1}.
     """
+    if not 0 <= n0 < traj.shape[0]:
+        raise ValueError(f"n0={n0} is outside a trajectory of length "
+                         f"{traj.shape[0]}")
     T = min(T, traj.shape[0] - n0 - 1)
     out = np.empty(T)
     run = np.zeros_like(x_star)
     for t in range(1, T + 1):
         run = run + traj[n0 + t]
+        out[t - 1] = np.linalg.norm(run / t - x_star)
+    return out
+
+
+def averaged_errors_shifted(traj, x_star, n0, T):
+    """|| xbar_{n0+t} - x^* || with the sum starting at x_{n0+1}.
+
+    Same as :func:`averaged_errors` but for the literal reading of
+    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j: the running sum starts at
+    ``traj[n0]`` and at most n - n0 points are produced.  Not used by the
+    released figures, which follow the authors' notebooks; kept so that the two
+    conventions can be compared without editing the shared helper.
+    """
+    if not 0 <= n0 < traj.shape[0]:
+        raise ValueError(f"n0={n0} is outside a trajectory of length "
+                         f"{traj.shape[0]}")
+    T = min(T, traj.shape[0] - n0)
+    out = np.empty(T)
+    run = np.zeros_like(x_star)
+    for t in range(1, T + 1):
+        run = run + traj[n0 + t - 1]
         out[t - 1] = np.linalg.norm(run / t - x_star)
     return out
 
@@ -346,19 +394,39 @@ def adaptive_gamma(mu, alpha):
     return ((1.0 - mu * alpha) / (1.0 + mu * alpha)) ** 2
 
 
-def asymptotic_covariance(Ai, bi, x_star, A, batch_size):
+def asymptotic_covariance(Ai, bi, x_star, A, batch_size, replace=True, N=None):
     """Covariance of the averaged SGD/SGDM limit (Corollary 3 / Eq. (Sigma)).
 
         Sigma^{-1} Omega Sigma^{-1},  with
         Omega = (1/B) * (1/N) sum_i (A_i x^* + b_i)(A_i x^* + b_i)^T.
+
+    ``Omega / B`` is the covariance of the mean gradient when the mini-batch is
+    drawn **with** replacement (``replace=True``), which is the setting of
+    Corollary 3 and of Figure 8.  When the mini-batch is drawn **without**
+    replacement -- ``make_batch_schedule(..., replace=False)``, used by the
+    coverage sweep of Figure 12 -- the finite-population factor
+    ``(N - B)/(N - 1)`` applies:
+
+        Omega_B = (N - B)/(N - 1) * Omega_1 / B,
+
+    which is 0.8 at the release's ``B = 0.2 N`` (so 0.894 times the sd).  Pass
+    ``replace=False`` for such a sweep; ``N`` is only needed to keep the default
+    (``len(Ai)``) explicit.
     """
-    N = Ai.shape[0]
+    N = Ai.shape[0] if N is None else int(N)
     A_inv = np.linalg.inv(A)
     Omega = np.zeros_like(A)
     for i in range(N):
         delta = Ai[i] @ x_star + bi[i]
         Omega += (delta @ delta.T) / N
-    Omega = Omega / batch_size
+    if replace:
+        Omega = Omega / batch_size
+    else:
+        if batch_size >= N:
+            # a full pass has no sampling noise at all
+            Omega = np.zeros_like(Omega)
+        else:
+            Omega = Omega / batch_size * (N - batch_size) / (N - 1)
     return A_inv @ Omega @ A_inv
 
 

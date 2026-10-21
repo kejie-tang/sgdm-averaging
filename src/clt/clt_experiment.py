@@ -72,10 +72,10 @@ def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--N", type=int, default=20000)
-    ap.add_argument("--d", type=int, default=10)
-    ap.add_argument("--num_seed", type=int, default=1000)
-    ap.add_argument("--batch_frac", type=float, default=0.2)
+    ap.add_argument("--N", type=int, default=20000, help="training-set size N")
+    ap.add_argument("--d", type=int, default=10, help="dimension d of x")
+    ap.add_argument("--num_seed", type=int, default=1000, help="number of independent replications")
+    ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
     # histogram experiment (Figure 8)
     ap.add_argument("--n_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
@@ -88,7 +88,17 @@ def main():
     # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
     ap.add_argument("--exps", type=int, nargs="+",
                     default=list(range(2, -12, -1)))
-    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9], help="momentum weights of the coverage sweep")
+    # The coverage sweep draws its mini-batches without replacement, so the
+    # finite-population factor (N-B)/(N-1) = 0.8 at B = 0.2 N belongs in the
+    # covariance.  It is on by default; --no-fpc switches back to the i.i.d.
+    # Omega/B of Corollary 3.
+    ap.add_argument("--fpc", dest="fpc", action="store_true", default=True,
+                    help="apply the finite-population factor (N-B)/(N-1) to the "
+                         "covariance of the coverage sweep (default)")
+    ap.add_argument("--no-fpc", dest="fpc", action="store_false",
+                    help="use the plain Omega/B covariance instead, i.e. the "
+                         "i.i.d. (with-replacement) formula of Corollary 3")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "clt"))
@@ -117,10 +127,10 @@ def main():
     initial = x_star + noise * 0.1
     phi = rng.rand(d, 1)
     phi /= np.linalg.norm(phi)
-    ev = np.linalg.eigvalsh(A)
-    mu = float(ev.min())
     alpha_hist = 0.001
 
+    # Figure 8 draws its mini-batches *with* replacement (replace=True
+    # below), the setting Corollary 3 assumes, so the plain Omega/B applies.
     cov = asymptotic_covariance(Ai, bi, x_star, A, batch_size)
 
     z_sgd = np.zeros(args.num_seed)
@@ -163,7 +173,11 @@ def main():
     noise2 = rng2.rand(d, 1)
     noise2 /= np.linalg.norm(noise2)
     initial2 = x_star2 + noise2 * 0.1
-    cov2 = asymptotic_covariance(Ai2, bi2, x_star2, A2, batch_size)
+    # The coverage sweep draws its mini-batches *without* replacement
+    # (replace=False below), so the covariance carries the finite-population
+    # factor (N-B)/(N-1) = 0.8 at B = 0.2 N.  Default; --no-fpc omits it.
+    cov2 = asymptotic_covariance(Ai2, bi2, x_star2, A2, batch_size,
+                                 replace=not args.fpc)
 
     alphas = [2.0 ** e for e in args.exps]
     n_alphas, n_gammas = len(alphas), len(args.gammas)

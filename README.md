@@ -17,7 +17,7 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 ├── src/               source code (one script per group of figures)
 ├── scripts/           run_all.sh — reproduce all; make_tarball.sh — pack
 ├── data/              public datasets + the archived Figure-16 logs
-└── docs/              submission statements
+└── docs/              submission statements + notes on conventions
 ```
 
 Running the scripts creates `results/<exp>/`, with the figure for each paper
@@ -27,7 +27,7 @@ and is not tracked; see section 4 for where each script writes.
 ## 2. Requirements
 
 * **Python >= 3.9**, **numpy**, **matplotlib** — every script, including the
-  default (exact) Figure 16.
+  default Figure 16 (drawn from the archived logs).
 * **PyTorch >= 1.10** — the MNIST experiments (Figures 13-15 and EC.4) and the
   optional `src/cifar/cifar_experiment.py --mode train`.
 
@@ -51,7 +51,11 @@ GPU but also run on CPU.
   for the published Figure 16.
 * **Figure 16 training logs** — `data/cifar_logs/` ships the 12 per-iteration
   loss series (4 momentum weights × 3 seeds) that the published CIFAR-10 panel
-  is drawn from. These are the only result data files distributed here.
+  is drawn from. These are the only result data files distributed here. They are
+  not a substitute for code: they are kept because the panel's **SGD** curve
+  cannot be regenerated (SGD is bistable at α = 0.5 without batch normalisation
+  and the three runs' escape times are chaotic — see Figure 16 in section 4).
+  The three SGDM curves *do* re-train (`--mode train`).
 
 See `data/README.md`.
 
@@ -89,6 +93,11 @@ python src/quadratic/quadratic_experiment.py --num_seed 200
   momentum weights γ = 0.5, 0.7, 0.9 in panel (a) and large ones
   γ = 0.97, 0.98, 0.99 in panel (b).
 * Figure 3 — Performance of x̄_{n₀+t} for Averaged SGD and Averaged SGDM, n₀ = 500.
+  Panel (b) is drawn from the same three fixed weights as panel (a) plus the
+  adaptive one, which is what the published panel actually plots: its curves
+  match the γ = 0.5/0.7/0.9 runs to ~4% median relative error and miss
+  γ = 0.97/0.98/0.99 by 18-30%.  The legend of the published panel prints other
+  values, so the two do not agree; the script labels the curves it draws.
 * Figure 4 — Performance of xₜ for SGD and SGDM, and their averaged versions, γ = 0.96.
 
 **Figure 5** — SGD and SGDM with γ = 0.96 and their averaged versions with
@@ -100,7 +109,9 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
 numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250. The script reports the
 condition numbers it computes from the realised population Hessian with the
-paper's recipe Aᵢ = ρ VᵢᵀVᵢ + 10 I_d.
+recipe Aᵢ = ρ VᵢVᵢᵀ + 10 I_d; they come out 3.31, 9.86, 14.71 (the ρ = 1 entry is
+what the paper's caption rounds to 3.5). `--kappa_labels measured` prints the
+realised values in the legend instead of the paper's rounded ones.
 ```bash
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
@@ -145,15 +156,27 @@ gives the correspondence with the paper's `f_i(X) = H(tanh(X^T a_1i) a_2i, b_i)`
 
 **Figure 16** — CIFAR-10 with a VGG-11 network (no batch normalisation).
 α = 0.5, γ ∈ {0.7, 0.9, 0.99}, 50 epochs, 391 mini-batches per epoch (B = 128).
-The learning rate is **not** rescaled by (1 − γ): the PyTorch step is
-`SGD(lr = 0.5, momentum = γ)` for every momentum weight.
+The step is `SGD(lr = α(1 − γ), momentum = γ)`: `torch.optim.SGD` scales its
+momentum buffer by `lr`, so that pair realises the paper's recursion
+`m = γm + (1−γ)g, x ← x − αm` (section 6.2). The network keeps the original
+VGG-11 three-layer classifier head (4096 → 4096 → 10 with dropout), sized for a
+1×1 feature map because CIFAR-10 images are 32×32.
 
-The panel is plotted from the per-iteration training losses behind the published
-figure, which ship under `data/cifar_logs/` (4 momentum weights × 3 seeds ×
-19,550 iterations). The default mode regenerates the published panel exactly
-from them; `--mode train` re-trains from scratch instead.
+Two modes. The published panel comes from the per-iteration training losses
+recorded by the authors' runs, shipped under `data/cifar_logs/` (4 momentum
+weights × 3 seeds × 19,550 iterations), which is what `--mode plot` draws.
+`--mode train` re-trains from scratch: the three SGDM curves then track the
+published ones closely (mean |Δ| in the running-mean loss 0.008 / 0.07 / 0.09 at
+γ = 0.7 / 0.9 / 0.99), but the **SGD** curve does not reproduce. Without batch
+normalisation at α = 0.5, SGD is bistable — a run stays at the chance loss
+(log 10 = 2.3026) or escapes, and the escape time is chaotic. In the authors'
+seeds it was t = 1862 (then diverged — the spike at the right edge of the
+panel), t = 4122 (still ended near 2.31) and never. A retrain escapes at
+different times, and its mean over three seeds — which is what the panel plots
+— therefore takes a different shape. `data/cifar_logs/` preserves that
+execution; no rerun can regenerate it.
 ```bash
-python src/cifar/cifar_experiment.py            # exact, from the archived logs
+python src/cifar/cifar_experiment.py            # published panel, from the logs
 python src/cifar/cifar_experiment.py --mode train --download   # re-train
 ```
 
@@ -189,11 +212,11 @@ python src/mnist/mnist_experiment.py --download
 | Figure | Script | Key parameters |
 |---|---|---|
 | 1 | `src/theory/lambda_heatmap.py` | κ = 5; (a) λ map, (b) SGDM-beats-SGD region |
-| 2 | `src/quadratic/quadratic_experiment.py` | α = 0.001, γ = {0.5,0.7,0.9} (a) / {0.97,0.98,0.99} (b) |
+| 2 | `src/quadratic/quadratic_experiment.py` | α = 0.001, γ = {0.5,0.7,0.9} in both panels (see the note under Figure 3) |
 | 3 | `src/quadratic/quadratic_experiment.py` | averaged, n₀ = 500 |
 | 4 | `src/quadratic/quadratic_experiment.py` | γ = 0.96, n₀ = 250, 500 |
 | 5 | `src/n0_sensitivity/n0_sensitivity_experiment.py` | γ = 0.96, n₀ = {250,500,750,1000} |
-| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.5, 9.9, 14.7}, adaptive γ, n₀ = 250 |
+| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.31, 9.86, 14.71} (paper: 3.5, 9.9, 14.7), adaptive γ, n₀ = 250 |
 | 7 | `src/decaying/decaying_experiment.py` | decayed α, γ = 0.96, n₀ = 250, 500 |
 | 8 | `src/clt/clt_experiment.py` | n₀ = 1000, n = 2000, γ = 0.9, 1000 trials |
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
@@ -203,7 +226,7 @@ python src/mnist/mnist_experiment.py --download
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
-| 16 | `src/cifar/cifar_experiment.py` | VGG-11 (no BN), B = 128, α = 0.5, 50 epochs; drawn from `data/cifar_logs/` |
+| 16 | `src/cifar/cifar_experiment.py` | VGG-11 (no BN), B = 128, α = 0.5, 50 epochs; `--mode plot` from `data/cifar_logs/`, `--mode train` to re-train |
 | EC.1 | `src/logistic/logistic_experiment.py` | α = 0.5, (a) γ = {0.3,0.5,0.7,adap} / (b) {adap,0.8,0.9}; `m₁ = g₁` |
 | EC.2 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 10; `m₁ = g₁` |
 | EC.3 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 40; `m₁ = g₁` |
@@ -241,21 +264,29 @@ configuration of the same kind — in `src/clt/clt_experiment.py`, `--n_hist` an
 
 **Indexing.** A trajectory from `sgdm_core.run_sgd` / `run_sgdm` is zero-based:
 `traj[k]` is the paper's `x_{k+1}`, so `traj[0]` is the initial point `x₁`. The
-Polyak average is formed from `traj[n0]` onwards, i.e. `x̄_{n₀+t}` for
-`t = 1, 2, …`, exactly as in the definition.
+Polyak average is accumulated from `traj[n0 + 1]` onwards and reported for
+`t = 1, 2, …, n - n0 - 1`, which is the convention of the authors' notebooks
+(the pre-update fallback aside, the accumulate happens after the update in the
+same iteration). `sgdm_core.averaged_errors_shifted` gives the literal
+`x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j` instead; no figure uses it.
 
 ### 6.2 Conventions
 
 * **Update.** `m_t = γ m_{t-1} + (1-γ) g_t`, `x_{t+1} = x_t - α m_t`; SGD is the
-  `γ = 0` case. In PyTorch this is `SGD(lr = α(1-γ), momentum = γ)`, except for
-  Figure 16, which uses the unscaled `lr = α` (see section 4).
+  `γ = 0` case. In PyTorch this is `SGD(lr = α(1-γ), momentum = γ)` throughout,
+  including Figure 16: `torch.optim.SGD` scales its momentum buffer by `lr`, so
+  the unscaled `lr = α` would make the effective step `α/(1-γ)` (10× too large
+  at γ = 0.9). `docs/momentum_convention.md` derives the correspondence and
+  `docs/verify_momentum_equivalence.py` checks it numerically (agreement to
+  1e-16 with the scaled rate).
 * **First step.** The logistic experiment (Figures EC.1-EC.3) starts the
   momentum from the raw mini-batch gradient, `m₁ = g₁`, rather than from
   `(1-γ) g₁`. Every other experiment uses the plain recursion above with
   `m₀ = 0`, i.e. `m₁ = (1-γ) g₁`.
 * **Adaptive weight.** `γ = ((1 - μα)/(1 + μα))²`, with μ the smallest
   eigenvalue of the population Hessian.
-* **Averaged iterate.** `x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j`.
+* **Averaged iterate.** `x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j`, evaluated in
+the authors' accumulation (``traj[n0+1]`` first, see *Indexing* above).
 * **Trajectory indexing.** The last-iterate panels are drawn over the
   zero-based array index, so their `t = 0` is the initial point `x₁` and the
   curve is `‖x_{t+1} − x*‖` for `t = 0, 1, 2, …`; the averaged panels plot

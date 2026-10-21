@@ -76,8 +76,8 @@ def spectral_radius_grid(kappa, n_grid=401):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kappa", type=float, default=5.0)
-    ap.add_argument("--n_grid", type=int, default=401)
+    ap.add_argument("--kappa", type=float, default=5.0, help="condition number L/mu")
+    ap.add_argument("--n_grid", type=int, default=401, help="grid resolution")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "theory"))
