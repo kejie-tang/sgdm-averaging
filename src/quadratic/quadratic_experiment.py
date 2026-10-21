@@ -16,7 +16,9 @@ Figures
 -------
 Figure 2  last iterate ||x_t - x^*||, small / large gamma.
 Figure 3  averaged iterates ||xbar_{n0+t} - x^*|| with n0 = 500, small / large
-          gamma (same momentum values as Figure 2).
+          gamma (same momentum values as Figure 2).  Panel (a) uses the
+          y-range 1e-9 ... 1e-7; panel (b) widens it to 1e-9 ... 1e-4 because
+          SGDM-0.99 starts at 4.7e-5 and would otherwise be clipped.
 Figure 4  SGD, SGDM (gamma = 0.96) and their averaged versions, with
           (a) n0 = 250 and (b) n0 = 500.
 
@@ -242,7 +244,7 @@ def main():
     # Here the horizontal axis is the averaging count t, as in the paper.
     # ------------------------------------------------------------------ #
 
-    def plot_averaged(n0, spec, fname):
+    def plot_averaged(n0, spec, fname, ylim=(1e-9, 1e-7)):
         """Draw averaged curves.  ``spec`` is a list of (label, getter) pairs
         in legend order; ``getter()`` returns the (num_seed, T) error norms."""
         fig, ax = _canvas()
@@ -253,7 +255,7 @@ def main():
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$||\bar{x}_{n_0+t}-x^*||^2$")
         ax.set_yscale("log")
-        ax.set_ylim([1e-9, 1e-7])
+        ax.set_ylim(ylim)
         ax.legend(fontsize=8)
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
@@ -267,18 +269,16 @@ def main():
         ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
     ], f"fig_average_small_n0_{n0}.png")
 
-    # Panel (b) "large gamma".  The published panel plots the same three fixed
-    # weights as panel (a) -- gamma = 0.5, 0.7, 0.9 -- plus SGDM-adap.  Matching
-    # the labels to the data that is actually drawn (ave_m_small) is what keeps
-    # the panel faithful: scoring every candidate against the full shape of the
-    # published curves picks gamma = 0.5 / 0.7 / 0.9 / adap with a median
-    # relative error of 4%, whereas the 0.97/0.98/0.99 runs miss them by 18-30%.
+    # Panel (b) "large gamma": the weights the caption and Figure 2(b) use,
+    # i.e. gamma = 0.97, 0.98, 0.99 plus the adaptive weight (~0.96).  The
+    # y-range is widened to 1e-4 because SGDM-0.99 starts at 4.7e-5, which the
+    # 1e-7 ceiling of panel (a) would clip for the first ~200 iterations.
     plot_averaged(n0, [
-        ("SGDM-adap", lambda: ave_m_small[n0][:, :, 3]),
-        ("SGDM-0.5", lambda: ave_m_small[n0][:, :, 0]),
-        ("SGDM-0.7", lambda: ave_m_small[n0][:, :, 1]),
-        ("SGDM-0.9", lambda: ave_m_small[n0][:, :, 2]),
-    ], f"fig_average_large_n0_{n0}.png")
+        ("SGDM-adap", lambda: ave_m_large[n0][:, :, 3]),
+        ("SGDM-0.97", lambda: ave_m_large[n0][:, :, 0]),
+        ("SGDM-0.98", lambda: ave_m_large[n0][:, :, 1]),
+        ("SGDM-0.99", lambda: ave_m_large[n0][:, :, 2]),
+    ], f"fig_average_large_n0_{n0}.png", ylim=(1e-9, 1e-4))
 
     # ------------------------------------------------------------------ #
     # Figure 4: SGD, SGDM-0.96 and their averaged versions, one panel per n0.

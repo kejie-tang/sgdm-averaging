@@ -93,11 +93,10 @@ python src/quadratic/quadratic_experiment.py --num_seed 200
   momentum weights γ = 0.5, 0.7, 0.9 in panel (a) and large ones
   γ = 0.97, 0.98, 0.99 in panel (b).
 * Figure 3 — Performance of x̄_{n₀+t} for Averaged SGD and Averaged SGDM, n₀ = 500.
-  Panel (b) is drawn from the same three fixed weights as panel (a) plus the
-  adaptive one, which is what the published panel actually plots: its curves
-  match the γ = 0.5/0.7/0.9 runs to ~4% median relative error and miss
-  γ = 0.97/0.98/0.99 by 18-30%.  The legend of the published panel prints other
-  values, so the two do not agree; the script labels the curves it draws.
+  Panel (b) uses the large momentum weights of Figure 2(b), γ = 0.97, 0.98, 0.99
+  and the adaptive weight (~0.96), which is what the caption promises.  Its
+  y-range is widened to 1e-9 … 1e-4 because SGDM-0.99 starts at 4.7e-5 and the
+  1e-7 ceiling of panel (a) would clip its first ~200 iterations.
 * Figure 4 — Performance of xₜ for SGD and SGDM, and their averaged versions, γ = 0.96.
 
 **Figure 5** — SGD and SGDM with γ = 0.96 and their averaged versions with
@@ -212,7 +211,7 @@ python src/mnist/mnist_experiment.py --download
 | Figure | Script | Key parameters |
 |---|---|---|
 | 1 | `src/theory/lambda_heatmap.py` | κ = 5; (a) λ map, (b) SGDM-beats-SGD region |
-| 2 | `src/quadratic/quadratic_experiment.py` | α = 0.001, γ = {0.5,0.7,0.9} in both panels (see the note under Figure 3) |
+| 2 | `src/quadratic/quadratic_experiment.py` | α = 0.001, γ = {0.5,0.7,0.9} (a) / {0.97,0.98,0.99} (b) |
 | 3 | `src/quadratic/quadratic_experiment.py` | averaged, n₀ = 500 |
 | 4 | `src/quadratic/quadratic_experiment.py` | γ = 0.96, n₀ = 250, 500 |
 | 5 | `src/n0_sensitivity/n0_sensitivity_experiment.py` | γ = 0.96, n₀ = {250,500,750,1000} |
