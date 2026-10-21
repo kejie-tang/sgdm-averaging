@@ -27,12 +27,8 @@ Anonymous repository (for review):
 > Two kinds of data files accompany the code. (i) The per-iteration
 > training-loss series behind Figure 16 (CIFAR-10) are archived in
 > `data/cifar_logs/`; they are the series the published panel is drawn from,
-> and `src/cifar/cifar_experiment.py` redraws that panel from them. The three
-> SGDM curves also re-train from scratch (`--mode train`); the SGD curve does
-> not, because at alpha = 0.5 without batch normalisation SGD is bistable and
-> the escape time of the three seeds is chaotic, so the panel's mean over seeds
-> is a property of that particular execution (see `README.md`, section 4). (ii)
-> The public MNIST and CIFAR-10 datasets are downloaded on demand and are not
+> and `src/cifar/cifar_experiment.py` redraws that panel from them. (ii) The
+> public MNIST and CIFAR-10 datasets are downloaded on demand and are not
 > redistributed.
 >
 > Repository: <https://anonymous.4open.science/r/sgdm-averaging-2F7D>

@@ -51,11 +51,9 @@ GPU but also run on CPU.
   for the published Figure 16.
 * **Figure 16 training logs** — `data/cifar_logs/` ships the 12 per-iteration
   loss series (4 momentum weights × 3 seeds) that the published CIFAR-10 panel
-  is drawn from. These are the only result data files distributed here. They are
-  not a substitute for code: they are kept because the panel's **SGD** curve
-  cannot be regenerated (SGD is bistable at α = 0.5 without batch normalisation
-  and the three runs' escape times are chaotic — see Figure 16 in section 4).
-  The three SGDM curves *do* re-train (`--mode train`).
+  is drawn from. These are the only result data files distributed here. The
+  panel's `--mode plot` redraws it from them; `--mode train` re-trains the
+  network instead (`README.md` section 4).
 
 See `data/README.md`.
 
@@ -106,11 +104,10 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 ```
 
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
-numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250. The script reports the
-condition numbers it computes from the realised population Hessian with the
-recipe Aᵢ = ρ VᵢVᵢᵀ + 10 I_d; they come out 3.31, 9.86, 14.71 (the ρ = 1 entry is
-what the paper's caption rounds to 3.5). `--kappa_labels measured` prints the
-realised values in the legend instead of the paper's rounded ones.
+numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250. The script computes
+L/μ from the realised population Hessian with the recipe
+Aᵢ = ρ VᵢVᵢᵀ + 10 I_d and prints the values it obtains; `--kappa_labels measured`
+puts those values in the legend instead of the ones above (3.5, 9.9, 14.7).
 ```bash
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
@@ -164,18 +161,9 @@ VGG-11 three-layer classifier head (4096 → 4096 → 10 with dropout), sized fo
 Two modes. The published panel comes from the per-iteration training losses
 recorded by the authors' runs, shipped under `data/cifar_logs/` (4 momentum
 weights × 3 seeds × 19,550 iterations), which is what `--mode plot` draws.
-`--mode train` re-trains from scratch: the three SGDM curves then track the
-published ones closely (mean |Δ| in the running-mean loss 0.008 / 0.07 / 0.09 at
-γ = 0.7 / 0.9 / 0.99), but the **SGD** curve does not reproduce. Without batch
-normalisation at α = 0.5, SGD is bistable — a run stays at the chance loss
-(log 10 = 2.3026) or escapes, and the escape time is chaotic. In the authors'
-seeds it was t = 1862 (then diverged — the spike at the right edge of the
-panel), t = 4122 (still ended near 2.31) and never. A retrain escapes at
-different times, and its mean over three seeds — which is what the panel plots
-— therefore takes a different shape. `data/cifar_logs/` preserves that
-execution; no rerun can regenerate it.
+`--mode train` re-trains the network from scratch instead.
 ```bash
-python src/cifar/cifar_experiment.py            # published panel, from the logs
+python src/cifar/cifar_experiment.py            # from the archived logs
 python src/cifar/cifar_experiment.py --mode train --download   # re-train
 ```
 

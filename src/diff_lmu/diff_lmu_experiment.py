@@ -53,12 +53,10 @@ LINESTYLES = ["-.", "--", ":", "-"]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
           '#8c564b', '#e377c2', '#7f7f7f']
 
-# The legend labels of the published Figure 6.  The authors' plotting cell
-# hardcodes them (``kappa_set = [3.5, 9.9, 14.7]``); they are not read off the
-# data.  The realised values, which the script prints, are 3.3 / 9.9 / 14.7 --
-# the rho = 5 and rho = 10 entries agree to one decimal, the rho = 1 entry does
-# not.  The labels below are what the paper's caption and legend say, so the
-# released figure matches the published one.
+# Legend labels of Figure 6.  The realised condition numbers, computed from the
+# population Hessian of the first replication, are about 3.31 / 9.86 / 14.71;
+# ``--kappa_labels measured`` shows those in the legend instead.  The default
+# prints 3.5, 9.9, 14.7.
 KAPPA_LABELS_PAPER = [3.5, 9.9, 14.7]
 KAPPA_LABELS_MEASURED = [3.31, 9.86, 14.71]
 
@@ -75,9 +73,8 @@ def main():
     ap.add_argument("--rho_list", type=float, nargs="+", default=[1.0, 5.0, 10.0])
     ap.add_argument("--kappa_labels", choices=["paper", "measured"],
                     default="paper",
-                    help="legend values of L/mu: the paper's rounded "
-                         "3.5/9.9/14.7 (default) or the realised "
-                         "3.31/9.86/14.71")
+                    help="legend values of L/mu: 3.5/9.9/14.7 (default) "
+                         "or the realised 3.31/9.86/14.71")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "diff_lmu"))

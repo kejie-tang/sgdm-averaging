@@ -6,14 +6,12 @@ network: eight convolutional layers, five max-pools, the three fully connected
 layers of the original classifier (4096 -> 4096 -> 10 with dropout) and **no
 batch normalisation**.
 
-Two details matter for reproducing the published panel:
+Two details of the specification:
 
-* **the classifier head.**  The authors' own `models/resnext.py` defines a
-  ``Vgg11`` with the full ``512*7*7 -> 4096 -> 4096 -> 10`` head.  CIFAR-10
-  images are 32x32, and five 2x2 pools reduce that to 1x1, so the head's input
-  is ``512`` here rather than ``512*7*7`` (which requires 224x224, i.e. the
-  ImageNet configuration).  A single ``512 -> 10`` layer trains much faster than
-  the paper's curves and does not reproduce them; the 4096-wide head does.
+* **the classifier head.**  VGG-11's original head is
+  ``512*7*7 -> 4096 -> 4096 -> 10``, sized for 224x224 inputs.  CIFAR-10 images
+  are 32x32, and five 2x2 pools reduce that to 1x1, so the head's input is
+  ``512`` here.
 * **the step size.**  ``torch.optim.SGD`` scales its momentum buffer by ``lr``,
   so ``lr = alpha, momentum = gamma`` realises ``x -= alpha * m`` with
   ``m = gamma*m + g``.  The paper's recursion is
@@ -22,7 +20,7 @@ Two details matter for reproducing the published panel:
   experiment in this release uses (see README section 6.2, and
   ``docs/momentum_convention.md`` for the derivation).  With the unscaled
   ``lr = alpha`` the effective step is ``alpha/(1-gamma)``, i.e. ten times too
-  large at ``gamma = 0.9``, and the SGDM runs sit at the chance level.
+  large at ``gamma = 0.9``.
 """
 
 from __future__ import annotations

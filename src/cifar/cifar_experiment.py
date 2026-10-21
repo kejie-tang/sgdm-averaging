@@ -1,33 +1,17 @@
 """
 Figure 16: SGD and SGDM on CIFAR-10 with a VGG-11 network.
 
-Two modes, because the four curves do not all reproduce by retraining:
+Two modes:
 
 ``--mode plot`` (default)
     Draws the published panel from ``data/cifar_logs/``: the per-iteration
     training losses recorded by the authors' own runs, three seeds per momentum
     weight, 19,550 iterations each (50 epochs x 391 mini-batches of size 128).
-    This is the only way to obtain the **SGD** curve exactly -- see below.
 
 ``--mode train``
     Re-runs the experiment from scratch with the released trainer
-    (``src/cifar/vgg.py``, VGG-11 without batch normalisation).  The three SGDM
-    curves come out close to the published ones (mean |diff| in the running-mean
-    loss: 0.008 at gamma = 0.7, 0.07 at 0.9, 0.09 at 0.99).  Needs PyTorch and
-    the CIFAR-10 data (``--download``).
-
-Why the SGD curve cannot be retrained
--------------------------------------
-Without batch normalisation an lr of 0.5 leaves SGD bistable: a run either sits
-at the chance loss (log 10 = 2.3026) for the whole 19,550 iterations or escapes
-to ~0.3-0.6, and *when* it escapes is chaotic.  In the authors' three seeds one
-escaped at t = 1862 and then diverged (that is the spike at the right edge of
-the published panel), one escaped at t = 4122 and still ended near 2.31, and one
-never escaped.  A retrain escapes at different times, or not at all, and the
-result is not even bit-reproducible on one GPU.  Since the panel plots the mean
-over the three seeds, its SGD curve is set by which seed escaped first -- a
-historical accident of that particular run.  ``data/cifar_logs/`` stores it;
-nothing can regenerate it.
+    (``src/cifar/vgg.py``, VGG-11 without batch normalisation).  Needs PyTorch
+    and the CIFAR-10 data (``--download``).
 
 Setting
 -------

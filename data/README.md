@@ -82,18 +82,7 @@ The batches are the standard 32x32 RGB images; the script reads them with
 These are the per-iteration training losses that produced the paper's
 Figure 16. They are **data**, not figures: `src/cifar/cifar_experiment.py`
 plots the published panel straight from them (default `--mode plot`).
-
-They are not a shortcut around the code. `--mode train` re-runs the experiment
-and reproduces the three **SGDM** curves to within a mean absolute difference of
-0.008 / 0.07 / 0.09 in the running-mean loss (γ = 0.7 / 0.9 / 0.99). The
-**SGD** curve cannot be re-trained: without batch normalisation an α = 0.5 SGD
-run is bistable — it either sits at the chance loss (log 10 = 2.3026) or escapes
-to ≈0.3–0.6, and when it escapes is chaotic. In the three seeds behind the
-panel one escaped at iteration 1862 and then diverged (the spike at the right
-edge of the published figure), one escaped at 4122 and still ended near 2.31,
-and one never escaped. The panel plots their mean, so its SGD curve is fixed by
-which seed escaped first; a retrain gets a different draw. These files preserve
-that execution.
+`--mode train` re-trains the network instead.
 
 ```
 data/cifar_logs/

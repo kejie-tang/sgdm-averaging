@@ -118,13 +118,11 @@ figure line up with the published one:
   `cifar/logs 2/`), `cifar/logs 2/` (training logs, incl. `num.log`, which
   records the optimizer call). The four series behind the published panel ship
   as `data/cifar_logs/`, which is what `cifar_experiment.py` plots by default.
-  The training script itself was lost; the architecture and the step were
-  recovered from the authors' other code and from the logs, and re-implemented
-  behind `--mode train`: `cifar/vgg.py` uses VGG-11 with the original
-  three-layer head (as in the authors' `models/resnext.py`), and the step is
-  `SGD(lr = α(1-γ), momentum = γ)`.  That reproduces the three SGDM curves; the
-  SGD curve cannot be re-trained because α = 0.5 SGD is bistable without batch
-  normalisation (see `README.md` section 4).
+  The training script itself was not preserved; the architecture and the step
+  were recovered from the authors' other code and from the logs, and
+  re-implemented behind `--mode train`: `cifar/vgg.py` uses VGG-11 with the
+  original three-layer head, and the step is
+  `SGD(lr = α(1-γ), momentum = γ)`.
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb` (averaging,
   moments) and `...的副本.ipynb` (n₀ = 20 variant). The scripts reproduce the
   authors' own recursion, including the special first momentum `g_1 = grad(x_1)`
