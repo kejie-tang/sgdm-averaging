@@ -5,8 +5,11 @@ This experiment is reported in the paper's electronic companion (Section EC.7.1)
 
 Setting
 -------
-N = 20,000, d = 10, a_i ~ N(0, I_d), b_i ~ Bernoulli(sigmoid(theta0^T a_i)) with
-theta0 = (1,...,1)/sqrt(d).  Batch size B = 0.2 N, learning rate alpha = 0.5,
+N = 20,000, d = 10, a_i ~ N(0, I_d), b_i = 1 with probability
+sigmoid(-theta0^T a_i), where theta0 = (1,...,1)/sqrt(d).  This is the problem
+of Section EC.7.1 with theta0 -> -theta0: flipping every label maps x -> -x,
+so all error norms in Figures EC.1-EC.3 are identical either way.  Batch size
+B = 0.2 N, learning rate alpha = 0.5,
 gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
 evaluated at the full-batch minimizer x^* (average adaptive weight ~ 0.75).

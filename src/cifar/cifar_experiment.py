@@ -250,7 +250,7 @@ def train_curves(args, device, gammas):
     print(f"[cifar] loaded {X.shape[0]} training images")
 
     curves = {}
-    for gamma in GAMMAS:
+    for gamma in gammas:
         runs = []
         for seed in args.seeds:
             print(f"[cifar] gamma={gamma} seed={seed}", flush=True)

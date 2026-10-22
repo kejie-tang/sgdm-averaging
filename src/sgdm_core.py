@@ -452,7 +452,10 @@ def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, n, n0,
     else:
         traj = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
                         alpha, gamma, n, A_seq=A_seq, b_seq=b_seq)
-    x_age = traj[n0:].mean(axis=0)
-    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0)
+    # Same averaging window as the error curves: the sum runs over
+    # x_{n0+1} ... x_n, i.e. traj[n0 + 1:] (traj[k] is x_{k+1}), which gives
+    # n - n0 - 1 terms.  See averaged_errors for the convention.
+    x_age = traj[n0 + 1:].mean(axis=0)
+    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0 - 1)
     den = np.sqrt(float((phi.T @ cov @ phi).sum()))
     return num / den, phi

@@ -15,6 +15,7 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 ├── AUTHORS
 ├── requirements.txt
 ├── src/               source code (one script per group of figures)
+├── tests/             regression tests for the conventions below
 ├── scripts/           run_all.sh — reproduce all; make_tarball.sh — pack
 ├── data/              public datasets + the archived Figure-16 logs
 └── docs/              submission statements + notes on conventions
@@ -38,6 +39,14 @@ pip install -r requirements.txt
 The quadratic-loss simulations (Figures 2-7) are single-threaded and need
 < 2 GB RAM and no GPU; the MNIST and CIFAR-10 experiments are much faster on a
 GPU but also run on CPU.
+
+```bash
+python tests/test_conventions.py     # ~10 s, no data needed
+```
+
+`tests/` pins the conventions the figures depend on: the averaging window, the
+`γ = 0` reduction, a per-iteration `γ` schedule, the finite-population factor,
+the decaying-rate shape, and that `--gamma` actually reaches the trainer.
 
 ## 3. Data
 
@@ -113,7 +122,10 @@ python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
 
 **Figure 7** — SGD and SGDM with γ = 0.96 and their averaged versions with
-decaying learning rates αₜ = α₀(max{n₀,t})^{-1/2}.
+decaying learning rates αₜ = α₀·(max{n₀,t})^{-1/2}. The script passes
+αₜ = α₀·sqrt(n₀/max{n₀,t}), i.e. the paper's schedule times the constant
+sqrt(n₀); its `--alpha0` is therefore the *unscaled* α₀ divided by sqrt(n₀),
+so the default 0.001 at n₀ = 250 corresponds to a paper α₀ of about 0.0158.
 ```bash
 python src/decaying/decaying_experiment.py --num_seed 200
 ```
