@@ -1,35 +1,25 @@
 """
 Neural-network definitions used by the MNIST experiments.
 
-`Net` is the model behind Figures 13-15 of the paper.  The paper writes the
-per-sample loss as
+`Net` is the model behind Figures 13-15: a two-layer perceptron with a tanh
+hidden layer and a *linear* output layer feeding the cross-entropy.  In the
+paper's notation the per-sample loss is
 
-    f_i(X) = H( tanh(X^T a_{1i}) a_{2i}, b_i ),   H = multi-class cross-entropy
+    f_i(W_1, W_2) = H( W_2^T tanh(W_1^T a_i + c_1) + c_2, b_i ),
 
-which is a **two-layer perceptron with a tanh hidden layer** and a *linear*
-output layer (no activation before the cross-entropy).  The symbols map onto
-the code as follows.
+    W_1 in R^{784 x 500},  W_2 in R^{500 x 10},  c_1 in R^500,  c_2 in R^10,
+    a_i the input image in R^784, b_i the one-hot label in R^10,
+    H the multi-class cross-entropy.
 
-    a_{1i}   the input image a_i in R^784            (per-sample data)
-    X        the first-layer weight  W1 in R^{784x500}
-    a_{2i}   the second-layer weight W2 in R^{500x10}
-    b_i      the one-hot label in R^10
-    H        the multi-class cross-entropy
+Both layers carry biases (``c_1``, ``c_2``).  The paper's Section 5.3 writes
+``f_i(X) = H(tanh(X^T a_{1i}) a_{2i}, b_i)`` with ``X in R^{784 x 10}``; the
+dimension is inconsistent with a hidden width of 500, and the formula is
+per-sample data in ``a_{1i}`` and ``b_i`` only -- ``a_{2i}`` is the output-layer
+weight matrix, not data.  The explicit form above is what the code implements.
 
-Two remarks on the paper's notation, since it is easy to misread:
-
-* ``a_{2i}`` carries the sample index ``i`` but is **not** per-sample data --
-  it is the output-layer *weight matrix*.  Only ``a_{1i}`` (the image) and
-  ``b_i`` (the label) depend on the sample.
-* the dimension of ``X`` given in the paper, ``R^{784x10}``, is inconsistent
-  with the formula; the hidden width is 500, so ``X`` (that is, ``W1``) lives in
-  ``R^{784x500}``.  Both layers also carry biases, which the formula omits.
-
-The hidden width (500) and the use of ``tanh`` are taken from the authors'
-original training code (``nn_models.py`` in the experiment sources); the class
-below is a faithful re-implementation.
-
-The CIFAR-10 network of Figure 16 is separate: see ``../cifar/vgg.py``.
+The hidden width (500) and the ``tanh`` activation are those of the authors'
+original experiment sources.  The CIFAR-10 network of Figure 16 is separate:
+see ``../cifar/vgg.py``.
 """
 
 from __future__ import annotations

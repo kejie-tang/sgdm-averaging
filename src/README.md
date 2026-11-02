@@ -54,7 +54,7 @@ experiments:
 | `make_batch_schedule` | the pre-sampled index sequence of length `n * batch_size`, shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
 | `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
-| `averaged_errors` / `averaged_errors_shifted` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` reproduces the authors' accumulation, `averaged_errors_shifted` is the same average displaced by one iterate |
+| `averaged_errors` / `averaged_errors_shifted` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` reproduces the authors' accumulation (Figures 3-7, EC.1-EC.3, CLT), `averaged_errors_shifted` is the same average displaced by one iterate (Figures 9-11) |
 | `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities; `asymptotic_covariance(..., replace=False)` applies the finite-population factor `(N-B)/(N-1)` for without-replacement batches (opt-in via `--fpc` in the CLT script) |
 
 `batch_gradient_sequence` is a pure speed-up: a learning-rate / momentum sweep

@@ -148,6 +148,16 @@ def test_adaptive_gamma_in_unit_interval():
 # Every CLI argument must be reachable (the `--gamma` class of bug)
 # --------------------------------------------------------------------------- #
 def test_all_scripts_import_and_expose_help():
+    """Every script parses its CLI.
+
+    The neural-network scripts import torch at module level, so they are only
+    checked when torch is installed; the rest need numpy and matplotlib only.
+    """
+    import importlib.util
+    has_torch = importlib.util.find_spec("torch") is not None
+    needs_torch = {"cifar_experiment.py", "mnist_experiment.py",
+                   "mnist_tanh_experiment.py"}
+
     scripts = []
     for exp in sorted(os.listdir(os.path.join(ROOT, "src"))):
         d = os.path.join(ROOT, "src", exp)
@@ -157,15 +167,26 @@ def test_all_scripts_import_and_expose_help():
             if f.endswith(".py") and not f.startswith(("_", "vgg", "nn_models")):
                 scripts.append(os.path.join(d, f))
     assert scripts, "no scripts found"
+
+    skipped = 0
     for s in scripts:
+        if not has_torch and os.path.basename(s) in needs_torch:
+            skipped += 1
+            continue
         r = subprocess.run([sys.executable, s, "--help"],
                            capture_output=True, text=True, timeout=120)
         assert r.returncode == 0, f"{s} --help failed:\n{r.stderr}"
+    if skipped:
+        print(f"    (skipped {skipped} torch-only scripts)")
 
 
 def test_cifar_train_curves_honours_the_requested_gammas():
     """The bug this guards: train_curves(args, device, gammas) iterated over the
     module constant GAMMAS instead of its argument, so --gamma was ignored."""
+    import importlib.util
+    if importlib.util.find_spec("torch") is None:
+        print("    (skipped: torch not installed)")
+        return
     import types
     sys.path.insert(0, os.path.join(ROOT, "src", "cifar"))
     import cifar_experiment as ce

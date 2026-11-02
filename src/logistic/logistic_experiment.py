@@ -101,6 +101,11 @@ def main():
     # the paper uses n0 = 10 for Figure EC.2 and n0 = 40 for Figure EC.3
     ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40], help="averaging burn-in n0, one value per panel")
     ap.add_argument("--ave_len", type=int, default=100, help="number of averaged points reported per n0")
+    ap.add_argument("--first_momentum", choices=["grad", "scaled", "zero"],
+                    default="grad",
+                    help="momentum at the first step: 'grad' = g_1 (authors' "
+                         "notebooks, default), 'scaled' = (1-gamma) g_1 and "
+                         "'zero' = the plain recursion with m_0 = 0")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "logistic"))
@@ -176,8 +181,8 @@ def main():
                 # oscillation that dominates Figure EC.1(b) (the gamma = 0.9
                 # curve dips to ~1e-2 near t = 15 and then rises to a ~8e-2
                 # hump near t = 28).  Dropping it flattens that hump by ~5x.
-                if k == 0:
-                    m = g
+                if k == 0 and args.first_momentum != "zero":
+                    m = g if args.first_momentum == "grad" else (1 - gamma_j) * g
                 else:
                     m = gamma_j * m + (1 - gamma_j) * g
                 x = x - args.alpha * m

@@ -113,10 +113,10 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 ```
 
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
-numbers L/μ = 3.5, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250. The script computes
-L/μ from the realised population Hessian with the recipe
-Aᵢ = ρ VᵢVᵢᵀ + 10 I_d and prints the values it obtains; `--kappa_labels measured`
-puts those values in the legend instead of the ones above (3.5, 9.9, 14.7).
+numbers L/μ = 3.31, 9.86, 14.71 (ρ ∈ {1, 5, 10}), n₀ = 250, matching Section 5.1.
+The script computes L/μ from the realised population Hessian with the recipe
+Aᵢ = ρ VᵢVᵢᵀ + 10 I_d and prints those values in the legend;
+`--kappa_labels rounded` prints 3.5, 9.9, 14.7 instead.
 ```bash
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
@@ -215,7 +215,7 @@ python src/mnist/mnist_experiment.py --download
 | 3 | `src/quadratic/quadratic_experiment.py` | averaged, n₀ = 500 |
 | 4 | `src/quadratic/quadratic_experiment.py` | γ = 0.96, n₀ = 250, 500 |
 | 5 | `src/n0_sensitivity/n0_sensitivity_experiment.py` | γ = 0.96, n₀ = {250,500,750,1000} |
-| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.31, 9.86, 14.71} (paper: 3.5, 9.9, 14.7), adaptive γ, n₀ = 250 |
+| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.31, 9.86, 14.71}, adaptive γ, n₀ = 250 |
 | 7 | `src/decaying/decaying_experiment.py` | decayed α, γ = 0.96, n₀ = 250, 500 |
 | 8 | `src/clt/clt_experiment.py` | n₀ = 1000, n = 2000, γ = 0.9, 1000 trials |
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
@@ -267,7 +267,9 @@ Polyak average is accumulated from `traj[n0 + 1]` onwards and reported for
 `t = 1, 2, …, n - n0 - 1`, which is the convention of the authors' notebooks
 (the pre-update fallback aside, the accumulate happens after the update in the
 same iteration). `sgdm_core.averaged_errors_shifted` gives the literal
-`x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j` instead; no figure uses it.
+`x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j` instead. Figures 3-7, EC.1-EC.3 and
+the CLT study use the first; Figures 9-11 (the sensitivity sweep) accumulate
+the pre-update iterate and so follow the literal one.
 
 ### 6.2 Conventions
 

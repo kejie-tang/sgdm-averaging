@@ -39,10 +39,17 @@ Conventions
 -----------
 Quadratic loss (Eq. (eq:quadratic) of the paper):
     f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i V_i^T + shift * I_d
-with x^* = -(mean_i A_i)^{-1} (mean_i b_i).  The paper writes the quadratic
-form as V_i^T V_i; for the square V_i drawn here the two products have the same
-eigenvalues but are different matrices, and the release keeps V_i V_i^T, which
-is what the authors' notebooks compute (so the figures reproduce them).
+with x^* = -(mean_i A_i)^{-1} (mean_i b_i).  Section 5.1 writes the quadratic
+form as V_i^T V_i; for the square V_i drawn here the two products are different
+matrices with the same eigenvalues in distribution (the realised L/mu differs by
+about 0.02%), and the release keeps V_i V_i^T.
+
+Note the sign of x^*.  Section 5.1 states x^* = (sum_i A_i)^{-1} (sum_i b_i),
+but b_i ~ U[0,1]^d is positive, so that expression gives a maximiser of the
+risk, not a minimiser.  The code minimises, x^* = -(sum_i A_i)^{-1}(sum_i b_i),
+and the difference in ||x_t - x^*|| is only a sign of the reference point: the
+initial point is x_1 = x^* + 0.1 u/||u|| either way, so the error curves are
+unchanged.
 
 SGDM update (Eq. (sgdm) of the paper) with momentum weight gamma:
     m_t = gamma * m_{t-1} + (1 - gamma) g_eta_t(x_t)
@@ -105,7 +112,7 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         Scale of the low-rank part of A_i, controls the condition number L/mu.
     shift : float
         Ridge added to each A_i (``+shift * I``).  With rho=1, shift=10 the
-        average condition number is L/mu = 3.31, close to the 3.5 quoted in
+        average condition number is L/mu = 3.31, which is the value quoted in
         Section 5.1.
     norm_const : float or None
         If given, divide ``(rho * V_i V_i^T + shift * I)`` by this constant

@@ -4,7 +4,7 @@ quadratic loss.
 
 Setting
 -------
-N = 20,000, d = 10, rho = 1 (so that the average condition number is 35/10),
+N = 20,000, d = 10, rho = 1 (average condition number L/mu ~ 3.31),
 batch size B = 0.2 N, learning rate alpha = 0.001, n = 1500 iterations,
 200 independent replications.  The adaptive momentum weight is
 gamma = ((1 - mu*alpha)/(1 + mu*alpha))^2, averaged value ~ 0.96.

@@ -5,7 +5,8 @@ Setting
 -------
 Quadratic loss with A_i = rho * V_i V_i^T + 10 I_d for rho in {1, 5, 10}.
 The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
-are the paper's 3.5, 9.9 and 14.7 (see ``KAPPA_LABELS``).  Otherwise the
+are the realised 3.31, 9.86 and 14.71 quoted in Section 5.1 (see
+``KAPPA_LABELS_MEASURED``).  Otherwise the
 setup of Section 5.1: N = 20,000, d = 10, batch
 size B = 0.2 N, learning rate
 alpha = 0.001, n = 1500 iterations, 200 replications.  The momentum weight is
@@ -53,12 +54,12 @@ LINESTYLES = ["-.", "--", ":", "-"]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
           '#8c564b', '#e377c2', '#7f7f7f']
 
-# Legend labels of Figure 6.  The realised condition numbers, computed from the
-# population Hessian of the first replication, are about 3.31 / 9.86 / 14.71;
-# ``--kappa_labels measured`` shows those in the legend instead.  The default
-# prints 3.5, 9.9, 14.7.
-KAPPA_LABELS_PAPER = [3.5, 9.9, 14.7]
+# Legend labels of Figure 6.  The default prints the realised condition numbers
+# of the first replication, 3.31 / 9.86 / 14.71, which is what Section 5.1
+# quotes (L/mu = 3.3).  ``--kappa_labels rounded`` prints 3.5 / 9.9 / 14.7 for
+# the earlier draft of the caption.
 KAPPA_LABELS_MEASURED = [3.31, 9.86, 14.71]
+KAPPA_LABELS_ROUNDED = [3.5, 9.9, 14.7]
 
 
 def main():
@@ -71,10 +72,10 @@ def main():
     ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
     ap.add_argument("--n0", type=int, default=250, help="averaging burn-in n0")
     ap.add_argument("--rho_list", type=float, nargs="+", default=[1.0, 5.0, 10.0])
-    ap.add_argument("--kappa_labels", choices=["paper", "measured"],
-                    default="paper",
-                    help="legend values of L/mu: 3.5/9.9/14.7 (default) "
-                         "or the realised 3.31/9.86/14.71")
+    ap.add_argument("--kappa_labels", choices=["measured", "rounded"],
+                    default="measured",
+                    help="legend values of L/mu: the realised 3.31/9.86/14.71 "
+                         "(default) or 3.5/9.9/14.7")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "diff_lmu"))
@@ -87,8 +88,8 @@ def main():
         raise ValueError(f"n0={n0} must be smaller than n={n}.")
     batch_size = int(round(args.batch_frac * N))
     rho_list = list(args.rho_list)
-    kappa_labels = (KAPPA_LABELS_MEASURED if args.kappa_labels == "measured"
-                    else KAPPA_LABELS_PAPER)
+    kappa_labels = (KAPPA_LABELS_ROUNDED if args.kappa_labels == "rounded"
+                    else KAPPA_LABELS_MEASURED)
     ave_len = n - n0 - 1
 
     err_sgd = np.zeros((args.num_seed, n, len(rho_list)))

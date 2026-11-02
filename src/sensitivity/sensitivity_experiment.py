@@ -3,8 +3,9 @@ Figures 9-11: sensitivity of SGD and SGDM to the learning rate.
 
 Setting
 -------
-N = 20,000, d = 10, A_i = (V_i V_i^T + 1.03 I)/1.04 (so the eigenvalues lie in
-[0, 1]), batch size B = 0.2 N, b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.
+N = 20,000, d = 10, A_i = (V_i V_i^T + 1.03 I)/1.04, batch size B = 0.2 N,
+b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.  The normalisation puts every
+eigenvalue below 1; the realised condition number is L/mu ~ 14.5.
 
 Figure 9 (last iterate, ||x_t - x^*||^2):
     left panel  -- SGD with alpha in {2^-9, 2^-7, 2^-5};
@@ -126,7 +127,7 @@ def main():
                     help="averaging burn-in for Figure 11")
     ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
     ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
-    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9], help="momentum weights of the coverage sweep")
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9], help="momentum weights of the sweep")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "sensitivity"))

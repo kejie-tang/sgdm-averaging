@@ -14,10 +14,10 @@ For a fixed condition number L/mu = kappa, the contraction factor lambda of
 SGDM on a quadratic loss is a closed-form function of (alpha, gamma):
 
     lambda = lambda(phi, gamma),
-    phi = min( alpha*sqrt(mu*L)/rho , 2(1+gamma)/(1-gamma) - alpha*sqrt(mu*L) )
+    phi = min( alpha*mu, 2(1+gamma)/(1-gamma) - alpha*L )
 
-with rho = sqrt(kappa).  The value plotted is the largest root of the
-characteristic polynomial (see Theorem thm:lambda in the appendix).
+(Theorem 2).  The value plotted is the largest root of the characteristic
+polynomial in (8).
 
 The horizontal axis is alpha*sqrt(mu*L) in [0, 2], the vertical axis is gamma
 in [0, 1]; brighter colours mean smaller lambda (faster convergence).

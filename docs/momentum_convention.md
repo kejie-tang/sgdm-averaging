@@ -8,12 +8,16 @@ x_t = x_{t-1} − α m_t
 ```
 
 where `g_t` is the mini-batch gradient, `α` the learning rate and `γ` the
-momentum weight (`γ = 0` is SGD). The convex experiments (Figures 2–12 and
-EC.1–EC.4) implement this recursion directly, so no translation is involved.
-The CIFAR-10 experiment of Figure 16 goes through
-`torch.optim.SGD`, whose update rule is written differently, and the two must
-not be confused: passing the paper's `α` straight into `lr` changes the
-effective step size by a factor `1/(1 − γ)`.
+momentum weight (`γ = 0` is SGD). The quadratic and CLT experiments
+(Figures 1–12) implement this recursion directly in `src/sgdm_core.py`, so no
+translation is involved. The neural-network experiments — Figures 13–15 and
+EC.4, and Figure 16 — go through `torch.optim.SGD`, whose update rule is
+written differently, and the two must not be confused: passing the paper's `α`
+straight into `lr` changes the effective step size by a factor `1/(1 − γ)`.
+
+The logistic experiments (Figures EC.1–EC.3) implement the recursion directly
+but start the momentum from the raw gradient, `m₁ = g₁`, rather than the
+`m₁ = (1 − γ) g₁` that `m₀ = 0` would give (see `logistic_experiment.py`).
 
 This note records the exact correspondence, because it is a natural question
 for a reader comparing the released code with the paper.
@@ -96,6 +100,6 @@ lr = alpha  (unscaled)     max|diff| vs paper = 1.348e+01   differs
 * `src/mnist_tanh/mnist_tanh_experiment.py` — `lr * (1 - gamma)`.
 * `src/mnist/mnist_experiment.py` — the same convention.
 
-The convex experiments do not use PyTorch at all: `src/sgdm_core.run_sgdm`
-implements `m = γm + (1 − γ)g`, `x = x − αm` verbatim, so their `α` and `γ` are
-the paper's without translation.
+The quadratic and CLT experiments do not use PyTorch at all:
+`src/sgdm_core.run_sgdm` implements `m = γm + (1 − γ)g`, `x = x − αm`
+verbatim, so their `α` and `γ` are the paper's without translation.

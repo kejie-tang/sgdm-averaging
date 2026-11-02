@@ -10,15 +10,15 @@ The statistic (Eq. (def:z))
 is asymptotically N(0, 1) by Corollary 3.
 
 Figure 8 : frequency of Z for averaged SGD and averaged SGDM, gamma = 0.9,
-           n0 = 1000, n = 2000, over 1000 trials.
+           n0 = 1000, n = 2000, over 1000 trials.  Mini-batches are drawn
+           without replacement, as in Section 5.1.
 Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
            and SGDM (gamma = 0.8, 0.9), over the grid alpha = 2^-11 ... 2^2,
            with a trajectory of n = 500 iterations, a burn-in of n0 = 200 and
            1000 trials per learning rate.
 
-           ``--n_cov 500 --n0_cov 200`` are the settings for this panel: the
-           transition of SGDM-0.9 falls between alpha = 2^-8 (~0.1) and
-           alpha = 2^-7 (~0.9), and the plateau sits at ~0.98.
+           The settings are those of Section 5.2: n = 1000, n0 = 500, one
+           fixed projection omega.  The plateau sits near 0.95.
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz
@@ -82,8 +82,10 @@ def main():
     ap.add_argument("--gamma_hist", type=float, default=0.9)
     # coverage experiment (Figure 12): an n = 500-iteration trajectory with a
     # burn-in of n0 = 200, averaged over 1000 trials per learning rate.
-    ap.add_argument("--n_cov", type=int, default=500)
-    ap.add_argument("--n0_cov", type=int, default=200)
+    ap.add_argument("--n_cov", type=int, default=1000,
+                    help="iterations of the coverage sweep (Section 5.2)")
+    ap.add_argument("--n0_cov", type=int, default=500,
+                    help="averaging burn-in of the coverage sweep")
     ap.add_argument("--num_seed_cov", type=int, default=1000)
     # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
     ap.add_argument("--exps", type=int, nargs="+",
@@ -129,9 +131,10 @@ def main():
     phi /= np.linalg.norm(phi)
     alpha_hist = 0.001
 
-    # Figure 8 draws its mini-batches *with* replacement (replace=True
-    # below), the setting Corollary 3 assumes, so the plain Omega/B applies.
-    cov = asymptotic_covariance(Ai, bi, x_star, A, batch_size)
+    # Section 5.1 draws the mini-batches without replacement, so the covariance
+    # carries the finite-population factor (N-B)/(N-1), as for Figure 12.
+    cov = asymptotic_covariance(Ai, bi, x_star, A, batch_size,
+                                replace=not args.fpc)
 
     z_sgd = np.zeros(args.num_seed)
     z_sgdm = np.zeros(args.num_seed)
@@ -139,7 +142,7 @@ def main():
         if seed % 100 == 0:
             print(f"[clt-hist] seed {seed}/{args.num_seed}", flush=True)
         schedule = make_batch_schedule(N, batch_size, args.n_hist, seed,
-                                       replace=True)
+                                       replace=False)
         # averaged SGD and averaged SGDM replay the same batches
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule,
                                                args.n_hist)
@@ -179,6 +182,11 @@ def main():
     cov2 = asymptotic_covariance(Ai2, bi2, x_star2, A2, batch_size,
                                  replace=not args.fpc)
 
+    # A single fixed unit projection omega, as in Section 5.2: the sweep tracks
+    # one confidence interval across learning rates rather than a new direction
+    # per trial.
+    phi_cov = np.ones((d, 1)) / np.sqrt(d)
+
     alphas = [2.0 ** e for e in args.exps]
     n_alphas, n_gammas = len(alphas), len(args.gammas)
     cover_sgd = np.zeros((args.num_seed_cov, n_alphas))
@@ -195,16 +203,16 @@ def main():
         A_seq, b_seq = batch_gradient_sequence(Ai2, bi2, batch_size, schedule,
                                                args.n_cov)
         for ai_, alpha in enumerate(alphas):
-            z, phi_ = clt_projection(
+            z, _ = clt_projection(
                 Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
                 args.n_cov, args.n0_cov, cov2, gamma=0.0,
-                phi=None, seed=seed, A_seq=A_seq, b_seq=b_seq)
+                phi=phi_cov, seed=seed, A_seq=A_seq, b_seq=b_seq)
             cover_sgd[seed, ai_] = 1.0 if abs(z) <= z1_96 else 0.0
             for gi_, gamma in enumerate(args.gammas):
                 zb, _ = clt_projection(
                     Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
                     args.n_cov, args.n0_cov, cov2, gamma=gamma,
-                    phi=phi_, seed=seed, A_seq=A_seq, b_seq=b_seq)
+                    phi=phi_cov, seed=seed, A_seq=A_seq, b_seq=b_seq)
                 cover_sgdm[seed, gi_, ai_] = 1.0 if abs(zb) <= z1_96 else 0.0
 
     fig = plt.figure(figsize=(5, 4), dpi=150)
