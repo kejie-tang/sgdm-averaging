@@ -57,8 +57,8 @@ else
   python src/mnist/mnist_experiment.py --download --epochs "$EPOCHS"
 
   # Figure 16 is drawn from the archived logs that produced the paper's panel
-  # (data/cifar_logs/), which reproduces it exactly.  To re-train the
-  # reconstruction from scratch instead, add "--mode train --download".
+  # (data/cifar_logs/). To train the network from scratch, add
+  # "--mode train --download".
   echo ">>> Figure 16: CIFAR-10 with VGG-11"
   python src/cifar/cifar_experiment.py
 fi

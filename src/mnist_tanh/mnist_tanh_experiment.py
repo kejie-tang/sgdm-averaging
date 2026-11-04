@@ -4,9 +4,9 @@ Figures 13-15: neural networks on MNIST (tanh activation).
 Model
 -----
 Two-layer perceptron with a tanh hidden layer, 784 -> 500 -> 10, trained with
-the multi-class cross-entropy loss (see ``nn_models.py`` for how this maps onto
-the paper's f_i(X) = H(tanh(X^T a_1i) a_2i, b_i)).  This is a *non-convex*
-problem and complements the multinomial logistic regression of Figure EC.4.
+the multi-class cross-entropy loss; see ``nn_models.py`` for the model
+definition. This is a non-convex problem and complements the multinomial
+logistic regression of Figure EC.4.
 
 Setting
 -------

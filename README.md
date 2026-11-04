@@ -6,13 +6,6 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 
 ---
 
-**Paper-alignment revision.** The quadratic sign and factorization, averaging
-endpoints, and logistic label direction now follow the manuscript. Figure 12
-restores a Git-recorded coverage protocol; the actual Remark 8 sampled-gradient
-covariance implementation remains optional. See
-[docs/paper_alignment.md](docs/paper_alignment.md) for what changed and the
-limits of comparisons against the historical PDF.
-
 ## 1. Layout
 
 ```
@@ -108,9 +101,7 @@ python src/quadratic/quadratic_experiment.py --num_seed 200
   γ = 0.97, 0.98, 0.99 in panel (b).
 * Figure 3 — Performance of x̄_{n₀+t} for Averaged SGD and Averaged SGDM, n₀ = 500.
   Panel (b) uses the large momentum weights of Figure 2(b), γ = 0.97, 0.98, 0.99
-  and the adaptive weight (~0.96), which is what the caption promises.  Its
-  y-range is widened to 1e-9 … 1e-4 because SGDM-0.99 starts at 4.7e-5 and the
-  1e-7 ceiling of panel (a) would clip its first ~200 iterations.
+  and the adaptive weight (~0.96). Its y-range is 1e-9 … 1e-4.
 * Figure 4 — Performance of xₜ for SGD and SGDM, and their averaged versions, γ = 0.96.
 
 **Figure 5** — SGD and SGDM with γ = 0.96 and their averaged versions with
@@ -120,7 +111,7 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 ```
 
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
-numbers L/μ ≈ 3.3, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250, matching Section 5.1.
+numbers L/μ ≈ 3.3, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250 (Section 5.1).
 The script computes L/μ from the realised population Hessian with the recipe
 Aᵢ = ρ VᵢᵀVᵢ + 10 I_d and prints the mean values rounded to one decimal;
 `--kappa_labels measured` uses two decimals.
@@ -129,8 +120,8 @@ python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
 
 **Figure 7** — SGD / SGDM and averaging with the paper's schedule
-alpha_t=alpha0/sqrt(max(n0,t)). By default alpha0=0.001*sqrt(n0), preserving
-the historical plateau rate 0.001. --alpha0 sets the coefficient literally;
+alpha_t=alpha0/sqrt(max(n0,t)). By default alpha0=0.001*sqrt(n0), giving
+an initial plateau rate of 0.001. --alpha0 sets the coefficient directly;
 --initial_lr sets the plateau used when --alpha0 is omitted.
 ~~~bash
 python src/decaying/decaying_experiment.py --num_seed 200
@@ -142,29 +133,18 @@ python src/clt/clt_experiment.py
 ~~~
 Figure 8 uses the full-data reference covariance, n=2000, n0=1000 and
 independent sampling with replacement.
-Figure 12 restores the protocol recorded in Git commit 7ba5f07: n=500,
-n0=200, full-data reference covariance with the finite-population correction,
-independent batches sampled without replacement, and one random direction per
-trajectory (seed+12345), shared across learning rates and methods. The Hessian
-is the simplified V_i^T V_i+I. This retains the published panel's shape;
-the original notebook/raw values are unavailable, so exact numerical identity
-with the embedded PDF image is not claimed. The manuscript must correct its
-n/n0 and covariance description; the panel does not evaluate Remark 8.
+Figure 12 uses n=500, n0=200 and the full-data reference covariance with
+the finite-population correction (N-B)/(N-1). Each mini-batch is sampled
+without replacement, independently of other batches. One unit random direction
+is drawn per trajectory using seed+12345 and shared across learning rates and
+methods. The Hessians are A_i=V_i^T V_i+I.
 
-`--covariance online` retains the actual Remark 8 estimator as an optional
-experiment. `--projection ones` and `--projection random` select fixed directions;
-`--sampling` explicitly overrides both figures' sampling. To repeat the earlier
-online/iid/fixed-ones diagnostic, use:
-```bash
-python src/clt/clt_experiment.py --n_cov 1000 --n0_cov 500 \
-    --covariance online --sampling with-replacement --projection ones
-```
 Failed/non-finite statistics remain in the replication denominator and are
 counted as non-coverage.
 
 **Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. We use
 iid Uniform(0,1) entries, A_i=V_i^T V_i+I and condition number about 14.7;
-Figure 12 uses the same simplified Hessians. The two
+Figure 12 uses the same Hessians. The two
 panels of Figures 9 and 11 are (left) SGD with α ∈ {2⁻⁹, 2⁻⁷, 2⁻⁵} and
 (right) SGDM with γ = 0.8 and α ∈ {2⁻⁹, …, 2⁻¹}.
 ```bash
@@ -183,8 +163,8 @@ python src/mnist_tanh/mnist_tanh_experiment.py --download
 * Figure 14 — Averaged SGD and averaged SGDM, n₀ = ⌊N/B⌋ = 234.
 * Figure 15 — Averaged SGD and averaged SGDM, n₀ = 2⌊N/B⌋ = 468.
 
-The network is defined in `src/mnist_tanh/nn_models.py`; its module docstring
-gives the correspondence with the paper's `f_i(X) = H(tanh(X^T a_1i) a_2i, b_i)`.
+The network is defined in `src/mnist_tanh/nn_models.py`, with trainable
+weights and biases in both linear layers and cross-entropy loss.
 
 **Figure 16** — CIFAR-10 with a VGG-11 network (no batch normalisation).
 α = 0.5, γ ∈ {0.7, 0.9, 0.99}, 50 epochs, 391 mini-batches per epoch (B = 128).
@@ -288,8 +268,7 @@ configuration of the same kind — in `src/clt/clt_experiment.py`, `--n_hist` an
 
 **Indexing.** A trajectory is zero-based: traj[k] is the paper's x_{k+1}.
 Averaging starts at traj[n0], exactly x_{n0+1}, and retains n-n0 stored
-iterates. averaged_errors_shifted is now a compatibility alias for this same
-literal definition. Historical notebooks used an extra one-iterate shift.
+iterates.
 
 
 ### 6.2 Conventions

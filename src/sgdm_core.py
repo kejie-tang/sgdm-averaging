@@ -10,8 +10,7 @@ Shared building blocks for reproducing the numerical experiments in
 This module collects the data-generation routines, the SGD / SGDM / averaged
 SGDM iterates and the helper quantities (condition number, adaptive momentum
 weight, asymptotic covariance matrix) that are reused across the experiment
-scripts. Conventions and remaining manuscript corrections are documented in
-docs/paper_alignment.md.
+scripts.
 
 Notation
 --------
@@ -41,10 +40,8 @@ Quadratic loss (Eq. (4)):
     f_i(x) = 1/2 x^T A_i x - b_i^T x,
     A_i = rho * V_i^T V_i + shift * I_d,
     x^* = (mean_i A_i)^{-1} mean_i b_i.
-V is stored as the transpose of the historical raw draw. Its entries remain
-i.i.d. Uniform(0,1), and V^T V equals historical raw @ raw.T exactly.
-Reflecting the historical starting perturbation and using A_i x - b_i
-reflects every historical trajectory, preserving its squared error.
+The entries of V_i and b_i are i.i.d. Uniform(0,1). The initial point is
+x_1 = x^* - 0.1 u / ||u||, with u drawn independently from Uniform(0,1)^d.
 
 SGDM update (Eq. (sgdm) of the paper) with momentum weight gamma:
     m_{t+1} = gamma * m_t + (1 - gamma) g_eta_t(x_t), m_1 = 0
@@ -75,15 +72,10 @@ import numpy as np
 # Data generation
 # --------------------------------------------------------------------------- #
 def draw_quadratic_problem(N, d, rng):
-    """Draw the raw random tensors of the Section 5.1 problem, in the authors'
-    order: ``V`` (N, d, d), then ``b_i`` (N, d, 1), then the noise direction
-    ``u`` (d, 1) of the starting point.
+    """Draw V (N, d, d), b_i (N, d, 1), then the initial direction u (d, 1).
 
-    The authors' notebooks take all three from one unbroken ``np.random``
-    stream and then go on drawing the mini-batch indices from the *same*
-    stream.  Keeping the draws in a helper of their own is what lets a caller
-    share that single stream with :func:`make_batch_schedule`; see
-    :func:`generate_quadratic_data`.
+    Use the same random stream for the subsequent mini-batch schedule so that
+    each replication is determined by one seed.
     """
     V = rng.rand(N, d, d).transpose(0, 2, 1)
     bi = rng.rand(N, d, 1)
@@ -91,7 +83,7 @@ def draw_quadratic_problem(N, d, rng):
     return V, bi, u
 
 
-def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
+def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0):
     """Assemble a quadratic-loss problem from the draws of
     :func:`draw_quadratic_problem`.
 
@@ -109,11 +101,6 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         Ridge added to each A_i (``+shift * I``).  With rho=1, shift=10 the
         average condition number is L/mu = 3.31, which is the value quoted in
         Section 5.1.
-    norm_const : float or None
-        If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
-        before forming A, b and x^*. The simplified Section 5.2 experiment
-        uses ``rho=1, shift=1, norm_const=None``. This optional scale is
-        retained for comparisons with historical settings.
 
     Returns
     -------
@@ -124,16 +111,13 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         b  : (d, 1)    population linear term (mean of bi)
         x_star : (d, 1) minimizer of the population risk
         mu, L  : smallest / largest eigenvalue of A
-        initial : (d, 1) starting point x_1 (x^* plus a small perturbation)
+        initial : (d, 1) starting point x_1 = x^* - 0.1 u / ||u||
     """
     N, d = V.shape[0], V.shape[1]
     Ai = np.empty((N, d, d))
     for i in range(N):
         Vi = V[i]
         Ai[i] = rho * (Vi.T @ Vi) + shift * np.eye(d)
-    if norm_const is not None:
-        Ai = Ai / float(norm_const)
-
     A = Ai.mean(axis=0)
     b = bi.mean(axis=0)
     x_star = np.linalg.solve(A, b)
@@ -147,28 +131,18 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
                 mu=mu, L=L, initial=initial)
 
 
-def generate_quadratic_data(N, d, seed, rho=1.0, shift=10.0, norm_const=None,
-                            rng=None):
+def generate_quadratic_data(N, d, seed, rho=1.0, shift=10.0, rng=None):
     """Generate a quadratic-loss problem as in Section 5.1 of the paper.
 
-    This is :func:`draw_quadratic_problem` followed by
-    :func:`build_quadratic_data`.  ``rho``, ``shift`` and ``norm_const`` are
-    forwarded to the latter; the random draws depend on the seed (and on
-    ``rho`` only through ``Ai``, so every ``rho`` describes the *same*
-    realisation of ``V``, ``b_i`` and the starting point).
-
-    ``rng`` may be supplied to draw from a caller-owned stream; when it is
-    given the three tensors are taken from it, so the caller can keep using the
-    same stream for the mini-batch schedule -- which is exactly what the
-    authors' notebooks do.  The experiment scripts therefore call
-    :func:`draw_quadratic_problem` and :func:`make_batch_schedule` directly
-    rather than this wrapper.
+    Calls :func:`draw_quadratic_problem` then :func:`build_quadratic_data`.
+    The parameters rho and shift control the Hessians; all configurations with
+    the same seed share V, b_i and the initial perturbation direction.
+    A caller-owned rng can also be used for the subsequent mini-batch schedule.
     """
     if rng is None:
         rng = np.random.RandomState(seed)
     V, bi, u = draw_quadratic_problem(N, d, rng)
-    return build_quadratic_data(V, bi, u, rho=rho, shift=shift,
-                                norm_const=norm_const)
+    return build_quadratic_data(V, bi, u, rho=rho, shift=shift)
 
 
 def generate_logistic_data(N, d, seed, theta0=None, rng=None):
@@ -177,11 +151,10 @@ def generate_logistic_data(N, d, seed, theta0=None, rng=None):
     a_i ~ N(0, I_d);  b_i = 1 with probability sigmoid(theta0^T a_i), and 0 otherwise.  The default theta0 =
     (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
 
-    ``rng`` may be supplied to draw from a caller-owned random stream.  The
-    authors generate the features, the labels and the mini-batch schedule from
-    one unbroken ``np.random`` stream per replication; the logistic experiment
-    passes the same ``RandomState`` here and to :func:`make_batch_schedule` so
-    that the realisation matches theirs exactly.
+    ``rng`` may be supplied to draw from a caller-owned random stream. The
+    features, labels and mini-batch schedule are drawn from one stream per
+    replication. Pass the same ``RandomState`` here and to
+    :func:`make_batch_schedule` to share that stream.
     """
     if rng is None:
         rng = np.random.RandomState(seed)
@@ -342,11 +315,6 @@ def averaged_errors(traj, x_star, n0, T):
     return np.linalg.norm(means - x_star, axis=(1, 2))
 
 
-def averaged_errors_shifted(traj, x_star, n0, T):
-    """Backward-compatible alias; the default now follows the paper literally."""
-    return averaged_errors(traj, x_star, n0, T)
-
-
 def last_iterate_errors(traj, x_star):
     """||x_t - x^*|| for every t (traj is (n, d, 1))."""
     return np.linalg.norm(traj - x_star[None, :, :], axis=(1, 2))
@@ -365,7 +333,7 @@ def asymptotic_covariance(Ai, bi, x_star, A, batch_size, replace=True, N=None):
 
     S_* = mean_i (A_i x_star - b_i)(A_i x_star - b_i)^T.
     Without-replacement batches additionally require (N-B)/(N-1).
-    This is an oracle reference, not the online estimator of Remark 8.
+    Evaluated at the full-data minimizer x_star.
     """
     N = Ai.shape[0] if N is None else int(N)
     A_inv = np.linalg.inv(A)
@@ -412,79 +380,3 @@ def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, n, n0,
     num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0)
     den = np.sqrt(float((phi.T @ cov @ phi).sum()))
     return num / den, phi
-
-
-def thresholded_inverse(hessian, lambda_lower):
-    """Remark 8: floor Hessian eigenvalues at lambda_lower / 2."""
-    if lambda_lower <= 0:
-        raise ValueError("lambda_lower must be positive")
-    values, vectors = np.linalg.eigh((hessian + hessian.T) / 2)
-    return (vectors / np.maximum(values, lambda_lower / 2)) @ vectors.T
-
-
-def online_covariance(Ai, bi, traj, batch_size, schedule, lambda_lower,
-                      replace=True):
-    """Remark 8 estimator from sampled, pre-update gradients along a trajectory.
-
-    Accumulates S_hat and H_hat in one pass, without using x_star.
-    Returns H_tilde^{-1} S_hat H_tilde^{-1} / B; optional finite-population
-    correction is for independent batches sampled without replacement.
-    """
-    n = len(traj)
-    if n < 1:
-        raise ValueError("An online covariance needs at least one iterate")
-    H = np.zeros_like(Ai[0])
-    S = np.zeros_like(H)
-    for k, x in enumerate(traj):
-        idx = schedule[k * batch_size:(k + 1) * batch_size]
-        grads = (Ai[idx] @ x - bi[idx])[..., 0]
-        H += Ai[idx].mean(axis=0)
-        S += grads.T @ grads / batch_size
-    H_inv = thresholded_inverse(H / n, lambda_lower)
-    factor = 1.0 if replace else (len(Ai) - batch_size) / (len(Ai) - 1)
-    return factor * H_inv @ (S / n) @ H_inv / batch_size
-
-
-def online_projected_variances(Ai, bi, trajectories, batch_size, schedule,
-                               phi, lambda_lower, replace=True, A_seq=None):
-    """Exact projections of Remark 8, shared across a parameter sweep.
-
-    trajectories has shape (config, n, d, 1). H_hat is shared across configs.
-    For speed, postprocess the stored trajectories in the final projection
-    direction H_tilde^{-1} phi, instead of forming one full S_hat per config.
-    This revisits sampled indices but is algebraically the same estimator as
-    online_covariance, not a covariance evaluated at the simulation minimizer.
-    Non-finite/overflowed estimates return NaN and are not counted as coverage.
-    """
-    trajectories = np.asarray(trajectories)
-    if trajectories.ndim != 4 or trajectories.shape[-1] != 1:
-        raise ValueError("Expected (config, n, d, 1) trajectories")
-    count, n, _, _ = trajectories.shape
-    if n < 1:
-        raise ValueError("Need at least one iterate")
-    H = np.zeros_like(Ai[0])
-    if A_seq is None:
-        for k in range(n):
-            idx = schedule[k * batch_size:(k + 1) * batch_size]
-            H += Ai[idx].mean(axis=0) / n
-    else:
-        H = A_seq[:n].mean(axis=0)
-    direction = thresholded_inverse(H, lambda_lower) @ phi.reshape(-1, 1)
-    valid = np.isfinite(trajectories).all(axis=(1, 2, 3))
-    result = np.full(count, np.nan)
-    if not valid.any():
-        return result
-    totals = np.zeros(valid.sum())
-    with np.errstate(over="ignore", invalid="ignore"):
-        for k in range(n):
-            idx = schedule[k * batch_size:(k + 1) * batch_size]
-            projected_A = (Ai[idx] @ direction)[..., 0]
-            projected_b = bi[idx, :, 0] @ direction[:, 0]
-            grads = (projected_A @ trajectories[valid, k, :, 0].T
-                     - projected_b[:, None])
-            totals += np.einsum("bc,bc->c", grads, grads) / batch_size
-        factor = 1.0 if replace else (len(Ai) - batch_size) / (len(Ai) - 1)
-        variances = factor * totals / (n * batch_size)
-    variances[~np.isfinite(variances) | (variances <= 0)] = np.nan
-    result[valid] = variances
-    return result

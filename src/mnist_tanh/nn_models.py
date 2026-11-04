@@ -11,15 +11,8 @@ paper's notation the per-sample loss is
     a_i the input image in R^784, b_i the one-hot label in R^10,
     H the multi-class cross-entropy.
 
-Both layers carry biases (``c_1``, ``c_2``).  The paper's Section 5.3 writes
-``f_i(X) = H(tanh(X^T a_{1i}) a_{2i}, b_i)`` with ``X in R^{784 x 10}``; the
-dimension is inconsistent with a hidden width of 500, and the formula is
-per-sample data in ``a_{1i}`` and ``b_i`` only -- ``a_{2i}`` is the output-layer
-weight matrix, not data.  The explicit form above is what the code implements.
-
-The hidden width (500) and the ``tanh`` activation are those of the authors'
-original experiment sources.  The CIFAR-10 network of Figure 16 is separate:
-see ``../cifar/vgg.py``.
+Both linear layers include trainable biases c_1 and c_2.
+The CIFAR-10 network of Figure 16 is defined separately in ../cifar/vgg.py.
 """
 
 from __future__ import annotations

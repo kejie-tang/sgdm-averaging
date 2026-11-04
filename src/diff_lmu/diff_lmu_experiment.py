@@ -94,11 +94,8 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[diff-Lmu] seed {seed}/{args.num_seed}", flush=True)
-        # One unbroken stream per replication, and one realisation of V, b_i
-        # and the starting point shared by every rho: the authors' notebook
-        # re-seeds inside the seed loop and then draws the mini-batch indices
-        # from the same stream, so the data are identical across rho while the
-        # schedule continues where the data left off.
+        # Share V, b_i and the initial direction across rho values. Draw the
+        # mini-batch indices from the same stream after drawing the data.
         rng = np.random.RandomState(seed)
         V, bi_r, u = draw_quadratic_problem(N, d, rng)
         # The mini-batch schedule depends only on the seed, not on rho.

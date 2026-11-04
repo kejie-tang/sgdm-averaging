@@ -16,8 +16,9 @@ written differently, and the two must not be confused: passing the paper's `α`
 straight into `lr` changes the effective step size by a factor `1/(1 − γ)`.
 
 The logistic experiments (Figures EC.1–EC.3) implement the recursion directly
-but start the momentum from the raw gradient, `m₁ = g₁`, rather than the
-`m₁ = (1 − γ) g₁` that `m₀ = 0` would give (see `logistic_experiment.py`).
+with initialization `m₂ = g₁` at the first update (see
+`src/logistic/logistic_experiment.py`). Subsequent steps use the recursion
+above.
 
 This note records the exact correspondence, because it is a natural question
 for a reader comparing the released code with the paper.

@@ -1,10 +1,7 @@
 """Regression tests for the conventions the paper's figures depend on.
 
-These are the checks that were done by hand while auditing the release; they
-are cheap (a few seconds) and catch the classes of mistake that are invisible
-in a plot: an averaging window that slipped by one iterate, gamma = 0 not being
-SGD, the PyTorch momentum convention, and CLI arguments that are parsed but
-never used.
+Checks cover averaging indices, data generation, momentum, covariance,
+learning-rate schedules and the experiment command-line interfaces.
 
 Run:  python -m pytest tests/ -q          (or: python tests/test_conventions.py)
 """
@@ -22,9 +19,8 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from sgdm_core import (  # noqa: E402
     adaptive_gamma, asymptotic_covariance, averaged_errors,
-    averaged_errors_shifted, decaying_schedule, make_batch_schedule, run_sgd,
-    run_sgdm, build_quadratic_data, draw_quadratic_problem,
-    online_covariance, online_projected_variances, thresholded_inverse,
+    decaying_schedule, make_batch_schedule, run_sgd,
+    run_sgdm, build_quadratic_data,
     generate_logistic_data,
 )
 
@@ -50,23 +46,10 @@ def test_averaged_errors_matches_bruteforce():
     assert np.allclose(got, want), (got, want)
 
 
-def test_averaged_errors_shifted_matches_bruteforce():
-    """The shifted variant starts at traj[n0], the literal paper definition."""
-    traj, xs = _toy_traj()
-    n0, T = 5, 10
-    got = averaged_errors_shifted(traj, xs, n0, T)
-    want = np.array([
-        np.linalg.norm(traj[n0:n0 + t].mean(axis=0) - xs)
-        for t in range(1, T + 1)
-    ])
-    assert np.allclose(got, want), (got, want)
-
-
 def test_averaged_errors_returns_n_minus_n0_points():
     traj, xs = _toy_traj(n=40)
     n0 = 10
     assert averaged_errors(traj, xs, n0, 10_000).size == 40 - n0
-    assert averaged_errors_shifted(traj, xs, n0, 10_000).size == 40 - n0
 
 
 def test_n0_out_of_range_raises():
@@ -147,7 +130,7 @@ def test_adaptive_gamma_in_unit_interval():
 
 
 # --------------------------------------------------------------------------- #
-# Every CLI argument must be reachable (the `--gamma` class of bug)
+# Experiment command-line interfaces
 # --------------------------------------------------------------------------- #
 def test_all_scripts_import_and_expose_help():
     """Every script parses its CLI.
@@ -183,8 +166,7 @@ def test_all_scripts_import_and_expose_help():
 
 
 def test_cifar_train_curves_honours_the_requested_gammas():
-    """The bug this guards: train_curves(args, device, gammas) iterated over the
-    module constant GAMMAS instead of its argument, so --gamma was ignored."""
+    """The CIFAR trainer must use the requested momentum values."""
     import importlib.util
     if importlib.util.find_spec("torch") is None:
         print("    (skipped: torch not installed)")
@@ -215,25 +197,21 @@ def test_cifar_train_curves_honours_the_requested_gammas():
 
 
 
-def test_quadratic_reflection_preserves_historical_squared_errors():
+def test_quadratic_minimizer_and_initial_distance():
     rng = np.random.RandomState(9)
-    raw = rng.rand(30, 3, 3)
+    V = rng.rand(30, 3, 3)
     bi = rng.rand(30, 3, 1)
     u = rng.rand(3, 1)
-    data = build_quadratic_data(raw.transpose(0, 2, 1), bi, u)
-    H = raw @ raw.transpose(0, 2, 1) + 10 * np.eye(3)
-    assert np.array_equal(data["Ai"], H)
-    xs_old = np.linalg.solve(H.mean(0), -bi.mean(0))
-    x_old = xs_old + 0.1 * u / np.linalg.norm(u)
-    schedule = make_batch_schedule(30, 6, 20, 1)
-    new = run_sgdm(H, bi, data["x_star"], data["initial"], 6,
-                   schedule, .01, .8, 20)
-    m_old = np.zeros_like(x_old)
-    for k in range(20):
-        assert np.allclose(new[k], -x_old, atol=1e-14)
-        ids = schedule[6*k:6*(k+1)]
-        m_old = .8*m_old + .2*(H[ids].mean(0) @ x_old + bi[ids].mean(0))
-        x_old -= .01*m_old
+    data = build_quadratic_data(V, bi, u)
+    xs = data["x_star"]
+    assert np.allclose(data["A"] @ xs - data["b"], 0)
+    assert np.isclose(np.linalg.norm(data["initial"] - xs), 0.1)
+    assert np.linalg.eigvalsh(data["Ai"]).min() >= 10
+    # The quadratic objective must increase away from its minimizer.
+    def loss(x):
+        return float((0.5 * x.T @ data["A"] @ x - data["b"].T @ x).item())
+    for _ in range(5):
+        assert loss(xs + rng.randn(3, 1)) > loss(xs)
 
 
 def test_logistic_labels_match_positive_paper_parameter():
@@ -244,35 +222,6 @@ def test_logistic_labels_match_positive_paper_parameter():
     assert np.array_equal(X, want_X)
     assert np.array_equal(y, draws <= (1 / (1 + np.exp(-X @ theta))).ravel())
 
-
-def test_online_projection_matches_sampled_gradient_estimator():
-    rng = np.random.RandomState(2)
-    raw = rng.rand(8, 2, 2)
-    Ai = raw @ raw.transpose(0, 2, 1) + np.eye(2)
-    bi = rng.rand(8, 2, 1)
-    trajs = rng.rand(3, 7, 2, 1)
-    schedule = make_batch_schedule(8, 3, 7, 4, replace=True)
-    phi = np.array([[.6], [.8]])
-    # Force thresholding to be active, to check more than the usual SPD case.
-    fast = online_projected_variances(Ai, bi, trajs, 3, schedule, phi, 10.)
-    for j, traj in enumerate(trajs):
-        H = sum(Ai[schedule[3*k:3*k+3]].mean(0) for k in range(7)) / 7
-        S = np.zeros((2, 2))
-        for k in range(7):
-            for i in schedule[3*k:3*k+3]:
-                g = Ai[i] @ traj[k] - bi[i]
-                S += g @ g.T / 21
-        # H is below 5I, so thresholded inverse must be I/5.
-        assert np.linalg.eigvalsh(H).max() < 5
-        want = S / (25 * 3)
-        got = online_covariance(Ai, bi, traj, 3, schedule, 10.)
-        assert np.allclose(got, want)
-        assert np.isclose(fast[j], (phi.T @ want @ phi).item())
-    # A bad trajectory must not contaminate the finite configurations.
-    trajs[1, 2, 0, 0] = np.nan
-    got = online_projected_variances(Ai, bi, trajs, 3, schedule, phi, 10.)
-    assert np.isnan(got[1])
-    assert np.allclose(got[[0, 2]], fast[[0, 2]])
 
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

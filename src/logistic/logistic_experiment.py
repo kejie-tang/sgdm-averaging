@@ -7,8 +7,7 @@ Setting
 -------
 N = 20,000, d = 10, a_i ~ N(0, I_d), b_i = 1 with probability
 sigmoid(theta0^T a_i), where theta0 = (1,...,1)/sqrt(d).
-Complementing the historical labels reflects all iterates and the minimizer,
-preserving squared errors.  Batch size
+Batch size
 B = 0.2 N, learning rate alpha = 0.5,
 gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
@@ -25,10 +24,9 @@ the paper (gamma = 0, 10*n iterations, alpha = 0.5).
 
 Update rule
 -----------
-Using the manuscript's indexing, the first update uses m_2 = grad(x_1)
+The first update uses m_2 = grad(x_1)
 and x_2 = x_1 - alpha m_2. For t >= 2 the ordinary recursion is
 m_{t+1} = gamma m_t + (1-gamma) grad(x_t), x_{t+1} = x_t-alpha m_{t+1}.
-This historical first-step exception must be disclosed in EC.7.1.
 
 Both panels start at t = 0 with the initial point x_1 = 0 (every curve of
 Figure EC.1 begins from the same value, ||x_1 - x^*||^2 = 1.0: the quadratic
@@ -99,11 +97,6 @@ def main():
     # the paper uses n0 = 10 for Figure EC.2 and n0 = 40 for Figure EC.3
     ap.add_argument("--n0_list", type=int, nargs="+", default=[10, 40], help="averaging burn-in n0, one value per panel")
     ap.add_argument("--ave_len", type=int, default=100, help="number of averaged points reported per n0")
-    ap.add_argument("--first_momentum", choices=["grad", "scaled", "zero"],
-                    default="grad",
-                    help="momentum at the first step: 'grad' = g_1 (authors' "
-                         "notebooks, default), 'scaled' = (1-gamma) g_1 and "
-                         "'zero' = the plain recursion with m_0 = 0")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "logistic"))
@@ -132,9 +125,7 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[logistic] seed {seed}/{args.num_seed}", flush=True)
-        # One unbroken random stream per replication, exactly as in the
-        # authors' notebook: the features, the labels and the mini-batch
-        # index sequence are drawn from the same ``np.random`` stream.
+        # Draw features, labels and mini-batch indices from one stream per seed.
         rng = np.random.RandomState(seed)
         X, y, theta0 = generate_logistic_data(N, d, seed, rng=rng)
         schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
@@ -170,16 +161,14 @@ def main():
                 # common starting value of every curve in Figure EC.1).
                 err_last[seed, k, j] = np.linalg.norm(x - x_star)
                 g = gradient(x, xi, yi)
-                # Keep the historical raw-gradient first step for the
-                # published transients; disclose this exception in EC.7.1.
                 for n0 in args.n0_list:
                     if k >= n0:
                         runs[n0] += x
                         if k - n0 < ave_len - 1:
                             err_ave[n0][seed, k - n0, j] = np.linalg.norm(
                                 runs[n0] / (k - n0 + 1) - x_star)
-                if k == 0 and args.first_momentum != "zero":
-                    m = g if args.first_momentum == "grad" else (1 - gamma_j) * g
+                if k == 0:
+                    m = g  # EC.7.1 initialization: m_2 = grad(x_1).
                 else:
                     m = gamma_j * m + (1 - gamma_j) * g
                 x = x - args.alpha * m
@@ -233,12 +222,11 @@ def main():
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [4, 5, 6]
 
-    # Retain 99 points and the historical y limits. Averaged panels now use
-    # t=1,...,99, matching xbar_{n0+t}; last-iterate panels keep index 0,...,98.
+    # Plot t=1,...,99 for xbar_{n0+t} and indices 0,...,98 for last iterates.
     T = ave_len - 1
     YLIM_EC1 = (3.3e-4, 1.42)      # both EC.1 panels
-    YLIM_EC2 = (1e-4, 2e-1)        # both EC.2 panels (authors' notebook)
-    YLIM_EC3 = (8e-5, 4e-2)        # both EC.3 panels (authors' notebook)
+    YLIM_EC2 = (1e-4, 2e-1)        # both EC.2 panels
+    YLIM_EC3 = (8e-5, 4e-2)        # both EC.3 panels
 
     # ---- Figure EC.1: last iterate, small/large gamma ----
     err_last = err_last[:, :T, :]

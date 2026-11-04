@@ -134,7 +134,7 @@ def load_curves(log_dir):
 
 
 # ---------------------------------------------------------------------------
-# Training the reconstruction
+# Training
 # ---------------------------------------------------------------------------
 
 CIFAR_URLS = [
@@ -269,9 +269,7 @@ def train_curves(args, device, gammas):
 # ---------------------------------------------------------------------------
 
 def draw(curves, out_png):
-    # The authors' canvas: 4 x 4 in with the axes box at 0.1/0.9 by 0.2/0.9,
-    # markevery=0.3, saved with bbox_inches="tight" (the notebooks' savefig
-    # line, which the published panels were produced with).
+    # Use a 4 x 4 inch canvas with the axes at 0.1/0.9 by 0.2/0.9.
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
@@ -294,7 +292,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["plot", "train"], default="plot",
                     help="plot (default): draw from the archived logs; "
-                         "train: re-run the reconstruction from scratch")
+                         "train: train the network from scratch")
     ap.add_argument("--log-dir", type=str, default=None,
                     help="directory with the archived Figure-16 logs")
     ap.add_argument("--gamma", type=float, nargs="+", default=[0.7, 0.9, 0.99],

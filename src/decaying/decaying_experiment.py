@@ -8,8 +8,8 @@ batch size B = 0.2 N, n = 2000 iterations, 200 replications, momentum weight
 gamma = 0.96.  The learning rate decays as
 
     alpha_t = alpha0 / sqrt(max(n0,t)).
-The default uses alpha0=0.001*sqrt(n0), preserving the historical
-initial plateau rate of 0.001. --alpha0 sets the paper's coefficient
+The default uses alpha0=0.001*sqrt(n0), giving an initial plateau rate
+of 0.001. --alpha0 sets the paper's coefficient
 directly; --initial_lr controls the default plateau.
 This schedule does not require knowing the horizon n in advance.
 

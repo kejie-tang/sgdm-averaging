@@ -130,11 +130,8 @@ def main():
     for seed in range(args.num_seed):
         if seed % 20 == 0:
             print(f"[quadratic] seed {seed}/{args.num_seed}", flush=True)
-        # One unbroken random stream per replication: the data, the starting
-        # point and the mini-batch indices are drawn from it in that order,
-        # exactly as the authors' notebooks do.  (Drawing the schedule from a
-        # freshly seeded stream instead -- as an earlier version of this script
-        # did -- gives a statistically equivalent but different realisation.)
+        # Draw the data, initial direction and mini-batch indices from one
+        # random stream per replication, in that order.
         rng = np.random.RandomState(seed)
         V, bi_r, u = draw_quadratic_problem(N, d, rng)
         data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=10.0)
