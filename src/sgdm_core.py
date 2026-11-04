@@ -10,8 +10,8 @@ Shared building blocks for reproducing the numerical experiments in
 This module collects the data-generation routines, the SGD / SGDM / averaged
 SGDM iterates and the helper quantities (condition number, adaptive momentum
 weight, asymptotic covariance matrix) that are reused across the experiment
-scripts.  Keeping them in one place guarantees that every experiment uses
-*exactly* the same conventions as the paper.
+scripts. Conventions and remaining manuscript corrections are documented in
+docs/paper_alignment.md.
 
 Notation
 --------
@@ -31,29 +31,24 @@ a line of code can be read against the text directly:
     A_i, b_i                 ``Ai``, ``bi``           per-sample loss parameters
     x*                       ``x_star``               minimizer of the risk
     mu, L                    ``mu``, ``L``            smallest/largest eigenvalue
-    x_t                      ``traj[t]``              last iterate at time t
+    x_t                      ``traj[t-1]``            last iterate at time t
     xbar_{n0+t}              ``averaged_errors(...)`` Polyak-averaged iterate
     Z                        ``clt_projection(...)`` projected CLT statistic
 
 Conventions
 -----------
-Quadratic loss (Eq. (eq:quadratic) of the paper):
-    f_i(x) = 1/2 x^T A_i x + b_i^T x,      A_i = rho * V_i V_i^T + shift * I_d
-with x^* = -(mean_i A_i)^{-1} (mean_i b_i).  Section 5.1 writes the quadratic
-form as V_i^T V_i; for the square V_i drawn here the two products are different
-matrices with the same eigenvalues in distribution (the realised L/mu differs by
-about 0.02%), and the release keeps V_i V_i^T.
-
-Note the sign of x^*.  Section 5.1 states x^* = (sum_i A_i)^{-1} (sum_i b_i),
-but b_i ~ U[0,1]^d is positive, so that expression gives a maximiser of the
-risk, not a minimiser.  The code minimises, x^* = -(sum_i A_i)^{-1}(sum_i b_i),
-and the difference in ||x_t - x^*|| is only a sign of the reference point: the
-initial point is x_1 = x^* + 0.1 u/||u|| either way, so the error curves are
-unchanged.
+Quadratic loss (Eq. (4)):
+    f_i(x) = 1/2 x^T A_i x - b_i^T x,
+    A_i = rho * V_i^T V_i + shift * I_d,
+    x^* = (mean_i A_i)^{-1} mean_i b_i.
+V is stored as the transpose of the historical raw draw. Its entries remain
+i.i.d. Uniform(0,1), and V^T V equals historical raw @ raw.T exactly.
+Reflecting the historical starting perturbation and using A_i x - b_i
+reflects every historical trajectory, preserving its squared error.
 
 SGDM update (Eq. (sgdm) of the paper) with momentum weight gamma:
-    m_t = gamma * m_{t-1} + (1 - gamma) g_eta_t(x_t)
-    x_{t+1} = x_t - alpha * m_t
+    m_{t+1} = gamma * m_t + (1 - gamma) g_eta_t(x_t), m_1 = 0
+    x_{t+1} = x_t - alpha * m_{t+1}
 SGD is the special case gamma = 0.
 
 Polyak (averaged) iterate (Eq. (def:ave) of the paper):
@@ -90,7 +85,7 @@ def draw_quadratic_problem(N, d, rng):
     share that single stream with :func:`make_batch_schedule`; see
     :func:`generate_quadratic_data`.
     """
-    V = rng.rand(N, d, d)
+    V = rng.rand(N, d, d).transpose(0, 2, 1)
     bi = rng.rand(N, d, 1)
     u = rng.rand(d, 1)
     return V, bi, u
@@ -115,17 +110,17 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         average condition number is L/mu = 3.31, which is the value quoted in
         Section 5.1.
     norm_const : float or None
-        If given, divide ``(rho * V_i V_i^T + shift * I)`` by this constant
+        If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
         before forming A, b and x^*.  The sensitivity experiment (Section 5.2)
         uses ``rho=1, shift=1.03, norm_const=1.04``, i.e. the authors'
-        ``(V_i V_i^T + 1.03 I)/1.04``.
+        ``(V_i^T V_i + 1.03 I)/1.04``.
 
     Returns
     -------
     dict with keys:
         Ai : (N, d, d) individual Hessians
         bi : (N, d, 1) individual linear terms
-        A  : (d, d)    population Hessian (mean of Ai)
+        A  : (d, d)    empirical Hessian (mean of Ai)
         b  : (d, 1)    population linear term (mean of bi)
         x_star : (d, 1) minimizer of the population risk
         mu, L  : smallest / largest eigenvalue of A
@@ -135,16 +130,16 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
     Ai = np.empty((N, d, d))
     for i in range(N):
         Vi = V[i]
-        Ai[i] = rho * (Vi @ Vi.T) + shift * np.eye(d)
+        Ai[i] = rho * (Vi.T @ Vi) + shift * np.eye(d)
     if norm_const is not None:
         Ai = Ai / float(norm_const)
 
     A = Ai.mean(axis=0)
     b = bi.mean(axis=0)
-    x_star = np.linalg.solve(A, -b)
+    x_star = np.linalg.solve(A, b)
 
     u = u / np.linalg.norm(u)
-    initial = x_star + u * 0.1
+    initial = x_star - u * 0.1
 
     ev = np.linalg.eigvalsh(A)
     mu, L = float(np.min(ev)), float(np.max(ev))
@@ -179,8 +174,7 @@ def generate_quadratic_data(N, d, seed, rho=1.0, shift=10.0, norm_const=None,
 def generate_logistic_data(N, d, seed, theta0=None, rng=None):
     """Generate binary-logistic data as in Section EC.7.1 of the paper.
 
-    a_i ~ N(0, I_d);  b_i = 1 with probability sigmoid(-theta0^T a_i) =
-    1 - sigmoid(theta0^T a_i), and 0 otherwise.  The default theta0 =
+    a_i ~ N(0, I_d);  b_i = 1 with probability sigmoid(theta0^T a_i), and 0 otherwise.  The default theta0 =
     (1/sqrt(d), ..., 1/sqrt(d)) matches the paper.
 
     ``rng`` may be supplied to draw from a caller-owned random stream.  The
@@ -195,7 +189,7 @@ def generate_logistic_data(N, d, seed, theta0=None, rng=None):
         theta0 = np.ones((d, 1)) / np.sqrt(d)
     X = rng.multivariate_normal(np.zeros(d), np.eye(d), size=N)
     thres = 1.0 / (1.0 + np.exp(-(X @ theta0))).reshape(-1)
-    y = (thres < rng.random(N)).astype(np.int64)
+    y = (rng.random(N) <= thres).astype(np.int64)
     return X, y, theta0
 
 
@@ -229,7 +223,7 @@ def batch_gradient_sequence(Ai, bi, batch_size, schedule, n):
     """Pre-compute the mean mini-batch gradient at every iteration.
 
     Iteration k sees the batch ``schedule[k*batch_size:(k+1)*batch_size]``, so
-    the mini-batch gradient is ``A_batch @ x + b_batch`` with
+    the mini-batch gradient is ``A_batch @ x - b_batch`` with
     ``A_batch = mean_i A_i``, ``b_batch = mean_i b_i`` over that batch.  Because
     the batches do not depend on the learning rate or the momentum weight, the
     same pair of arrays can be replayed by *every* configuration in a sweep
@@ -298,7 +292,7 @@ def run_sgd(Ai, bi, x_star, initial, batch_size, schedule, alpha, n,
         else:
             A_batch, b_batch = A_seq[k], b_seq[k]
         traj[k] = x
-        x = x - _step_size(alpha, k) * (A_batch @ x + b_batch)
+        x = x - _step_size(alpha, k) * (A_batch @ x - b_batch)
     return traj
 
 
@@ -323,69 +317,34 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, n,
             A_batch, b_batch = A_seq[k], b_seq[k]
         traj[k] = x
         g, one_minus_g = _weights(gamma, k)
-        m = g * m + one_minus_g * (A_batch @ x + b_batch)
+        m = g * m + one_minus_g * (A_batch @ x - b_batch)
         x = x - _step_size(alpha, k) * m
     return traj
 
 
 def decaying_schedule(n0, n, alpha0):
-    """Decaying learning rate of Figure 7.
-
-        alpha_t = alpha0 * sqrt(n0 / max(n0, t)),   t = 1, ..., n
-
-    i.e. alpha0 for t <= n0 and alpha0 * sqrt(n0/t) afterwards, which is the
-    paper's alpha_t = alpha0 * (max{n0, t})^{-1/2} up to the constant sqrt(n0).
-    """
+    """The paper's alpha_t = alpha0 / sqrt(max(n0, t)), t=1,...,n."""
+    if n0 < 1:
+        raise ValueError("n0 must be positive for the decaying schedule")
     t = np.arange(1, n + 1, dtype=float)
-    return alpha0 * np.sqrt(n0 / np.maximum(n0, t))
+    return alpha0 / np.sqrt(np.maximum(n0, t))
 
 
 def averaged_errors(traj, x_star, n0, T):
-    """|| xbar_{n0+t} - x^* || for t = 1..T, the averaged-iterate curves.
-
-    ``traj`` is the (n, d, 1) last-iterate trajectory with ``traj[k] = x_{k+1}``
-    (see the module docstring), ``n0`` the burn-in and ``T`` the number of
-    averaged increments to report.  At most n - n0 - 1 points are produced.
-
-    The running sum starts at ``traj[n0 + 1]``.  That is the convention the
-    authors' notebooks use -- they accumulate the iterate *after* the update
-    has been applied, and divide by ``k - n0`` in the same iteration -- and it
-    is what the published averaged panels are drawn from.  It equals the
-    definition xbar_{n0+t} = (1/t) sum_{j=n0+2}^{n0+t+1} x_j, i.e. the same
-    average shifted by one iterate; see :func:`averaged_errors_shifted` for the
-    variant whose sum starts at x_{n0+1}.
-    """
-    if not 0 <= n0 < traj.shape[0]:
-        raise ValueError(f"n0={n0} is outside a trajectory of length "
-                         f"{traj.shape[0]}")
-    T = min(T, traj.shape[0] - n0 - 1)
-    out = np.empty(T)
-    run = np.zeros_like(x_star)
-    for t in range(1, T + 1):
-        run = run + traj[n0 + t]
-        out[t - 1] = np.linalg.norm(run / t - x_star)
-    return out
+    """Errors of (1/t) sum_{j=n0+1}^{n0+t} x_j, traj[k] = x_{k+1}."""
+    if not 0 <= n0 < len(traj):
+        raise ValueError(f"n0={n0} is outside a trajectory of length {len(traj)}")
+    if T < 0:
+        raise ValueError("T must be nonnegative")
+    T = min(T, len(traj) - n0)
+    means = np.cumsum(traj[n0:n0 + T], axis=0)
+    means /= np.arange(1, T + 1)[:, None, None]
+    return np.linalg.norm(means - x_star, axis=(1, 2))
 
 
 def averaged_errors_shifted(traj, x_star, n0, T):
-    """|| xbar_{n0+t} - x^* || with the sum starting at x_{n0+1}.
-
-    Same as :func:`averaged_errors` but for the literal reading of
-    xbar_{n0+t} = (1/t) sum_{j=n0+1}^{n0+t} x_j: the running sum starts at
-    ``traj[n0]`` and at most n - n0 points are produced.  Not used by the
-    released figures, which follow the authors' notebooks; kept so that the two
-    conventions can be compared without editing the shared helper.
-    """
-    if not 0 <= n0 < traj.shape[0]:
-        raise ValueError(f"n0={n0} is outside a trajectory of length "
-                         f"{traj.shape[0]}")
-    T = min(T, traj.shape[0] - n0)
-    out = np.empty(T)
-    run = np.zeros_like(x_star)
-    for t in range(1, T + 1):
-        run = run + traj[n0 + t - 1]
-        out[t - 1] = np.linalg.norm(run / t - x_star)
-    return out
+    """Backward-compatible alias; the default now follows the paper literally."""
+    return averaged_errors(traj, x_star, n0, T)
 
 
 def last_iterate_errors(traj, x_star):
@@ -402,29 +361,17 @@ def adaptive_gamma(mu, alpha):
 
 
 def asymptotic_covariance(Ai, bi, x_star, A, batch_size, replace=True, N=None):
-    """Covariance of the averaged SGD/SGDM limit (Corollary 3 / Eq. (Sigma)).
+    """Full-data reference covariance H^{-1} S_* H^{-1} / B.
 
-        Sigma^{-1} Omega Sigma^{-1},  with
-        Omega = (1/B) * (1/N) sum_i (A_i x^* + b_i)(A_i x^* + b_i)^T.
-
-    ``Omega / B`` is the covariance of the mean gradient when the mini-batch is
-    drawn **with** replacement (``replace=True``), which is the setting of
-    Corollary 3 and of Figure 8.  When the mini-batch is drawn **without**
-    replacement -- ``make_batch_schedule(..., replace=False)``, used by the
-    coverage sweep of Figure 12 -- the finite-population factor
-    ``(N - B)/(N - 1)`` applies:
-
-        Omega_B = (N - B)/(N - 1) * Omega_1 / B,
-
-    which is 0.8 at the release's ``B = 0.2 N`` (so 0.894 times the sd).  Pass
-    ``replace=False`` for such a sweep; ``N`` is only needed to keep the default
-    (``len(Ai)``) explicit.
+    S_* = mean_i (A_i x_star - b_i)(A_i x_star - b_i)^T.
+    Without-replacement batches additionally require (N-B)/(N-1).
+    This is an oracle reference, not the online estimator of Remark 8.
     """
     N = Ai.shape[0] if N is None else int(N)
     A_inv = np.linalg.inv(A)
     Omega = np.zeros_like(A)
     for i in range(N):
-        delta = Ai[i] @ x_star + bi[i]
+        delta = Ai[i] @ x_star - bi[i]
         Omega += (delta @ delta.T) / N
     if replace:
         Omega = Omega / batch_size
@@ -459,10 +406,85 @@ def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, n, n0,
     else:
         traj = run_sgdm(Ai, bi, x_star, initial, batch_size, schedule,
                         alpha, gamma, n, A_seq=A_seq, b_seq=b_seq)
-    # Same averaging window as the error curves: the sum runs over
-    # x_{n0+1} ... x_n, i.e. traj[n0 + 1:] (traj[k] is x_{k+1}), which gives
-    # n - n0 - 1 terms.  See averaged_errors for the convention.
-    x_age = traj[n0 + 1:].mean(axis=0)
-    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0 - 1)
+    if not 0 <= n0 < n:
+        raise ValueError("Require 0 <= n0 < n")
+    x_age = traj[n0:].mean(axis=0)
+    num = float((phi.T @ (x_age - x_star)).sum()) * np.sqrt(n - n0)
     den = np.sqrt(float((phi.T @ cov @ phi).sum()))
     return num / den, phi
+
+
+def thresholded_inverse(hessian, lambda_lower):
+    """Remark 8: floor Hessian eigenvalues at lambda_lower / 2."""
+    if lambda_lower <= 0:
+        raise ValueError("lambda_lower must be positive")
+    values, vectors = np.linalg.eigh((hessian + hessian.T) / 2)
+    return (vectors / np.maximum(values, lambda_lower / 2)) @ vectors.T
+
+
+def online_covariance(Ai, bi, traj, batch_size, schedule, lambda_lower,
+                      replace=True):
+    """Remark 8 estimator from sampled, pre-update gradients along a trajectory.
+
+    Accumulates S_hat and H_hat in one pass, without using x_star.
+    Returns H_tilde^{-1} S_hat H_tilde^{-1} / B; optional finite-population
+    correction is for independent batches sampled without replacement.
+    """
+    n = len(traj)
+    if n < 1:
+        raise ValueError("An online covariance needs at least one iterate")
+    H = np.zeros_like(Ai[0])
+    S = np.zeros_like(H)
+    for k, x in enumerate(traj):
+        idx = schedule[k * batch_size:(k + 1) * batch_size]
+        grads = (Ai[idx] @ x - bi[idx])[..., 0]
+        H += Ai[idx].mean(axis=0)
+        S += grads.T @ grads / batch_size
+    H_inv = thresholded_inverse(H / n, lambda_lower)
+    factor = 1.0 if replace else (len(Ai) - batch_size) / (len(Ai) - 1)
+    return factor * H_inv @ (S / n) @ H_inv / batch_size
+
+
+def online_projected_variances(Ai, bi, trajectories, batch_size, schedule,
+                               phi, lambda_lower, replace=True, A_seq=None):
+    """Exact projections of Remark 8, shared across a parameter sweep.
+
+    trajectories has shape (config, n, d, 1). H_hat is shared across configs.
+    For speed, postprocess the stored trajectories in the final projection
+    direction H_tilde^{-1} phi, instead of forming one full S_hat per config.
+    This revisits sampled indices but is algebraically the same estimator as
+    online_covariance, not a covariance evaluated at the simulation minimizer.
+    Non-finite/overflowed estimates return NaN and are not counted as coverage.
+    """
+    trajectories = np.asarray(trajectories)
+    if trajectories.ndim != 4 or trajectories.shape[-1] != 1:
+        raise ValueError("Expected (config, n, d, 1) trajectories")
+    count, n, _, _ = trajectories.shape
+    if n < 1:
+        raise ValueError("Need at least one iterate")
+    H = np.zeros_like(Ai[0])
+    if A_seq is None:
+        for k in range(n):
+            idx = schedule[k * batch_size:(k + 1) * batch_size]
+            H += Ai[idx].mean(axis=0) / n
+    else:
+        H = A_seq[:n].mean(axis=0)
+    direction = thresholded_inverse(H, lambda_lower) @ phi.reshape(-1, 1)
+    valid = np.isfinite(trajectories).all(axis=(1, 2, 3))
+    result = np.full(count, np.nan)
+    if not valid.any():
+        return result
+    totals = np.zeros(valid.sum())
+    with np.errstate(over="ignore", invalid="ignore"):
+        for k in range(n):
+            idx = schedule[k * batch_size:(k + 1) * batch_size]
+            projected_A = (Ai[idx] @ direction)[..., 0]
+            projected_b = bi[idx, :, 0] @ direction[:, 0]
+            grads = (projected_A @ trajectories[valid, k, :, 0].T
+                     - projected_b[:, None])
+            totals += np.einsum("bc,bc->c", grads, grads) / batch_size
+        factor = 1.0 if replace else (len(Ai) - batch_size) / (len(Ai) - 1)
+        variances = factor * totals / (n * batch_size)
+    variances[~np.isfinite(variances) | (variances <= 0)] = np.nan
+    result[valid] = variances
+    return result

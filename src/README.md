@@ -34,10 +34,8 @@ Two conventions are easy to get wrong and are spelled out where they bite:
   `traj[0]` is the initial point `x_1`;
 * an `alpha` (or `gamma`) argument that is a *sequence* is read per iteration,
   which is how Figure 7's decaying learning rate is expressed;
-* `averaged_errors` accumulates from `traj[n0 + 1]` and reports n - n0 - 1
-  points, which is the authors' convention; `averaged_errors_shifted` is the
-  same average with the sum starting at `x_{n0+1}` (n - n0 points) and is not
-  used by any figure.
+* averaged_errors starts at traj[n0]=x_{n0+1} and returns n-n0 points;
+  averaged_errors_shifted is a compatibility alias, not a second convention.
 
 ## The shared module `sgdm_core.py`
 
@@ -47,15 +45,16 @@ experiments:
 
 | Function | Purpose |
 |---|---|
-| `draw_quadratic_problem` | the raw draws `V = rand(N, d, d)`, `b_i = rand(N, d, 1)`, `u = rand(d, 1)` from a caller-owned `rng` |
-| `build_quadratic_data` | `A_i = rho V_i V_i^T + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
+| `draw_quadratic_problem` | transposed raw draw `V = rand(N,d,d).transpose(0,2,1)`, then `b_i = rand(N,d,1)`, `u = rand(d,1)` from a caller-owned `rng` |
+| `build_quadratic_data` | `A_i = rho V_i^T V_i + shift I_d`, `b_i`, `x*`, `L`, `mu`, the initial point |
 | `generate_quadratic_data` | `draw_quadratic_problem` + `build_quadratic_data` in one call (kept for convenience; `rng=` passthrough supported) |
 | `generate_logistic_data` | `a_i ~ N(0, I_d)`, labels from `sigmoid(theta0^T a_i)`; accepts a caller-owned `rng` so the features, labels and batches can be drawn from one stream |
 | `make_batch_schedule` | the pre-sampled index sequence of length `n * batch_size`, shared by SGD and SGDM; accepts the same optional `rng` |
 | `batch_gradient_sequence` | caches the per-iteration mini-batch `(A, b)` means |
 | `run_sgd` / `run_sgdm` | last-iterate trajectories (scalar or decaying `alpha`) |
-| `averaged_errors` / `averaged_errors_shifted` / `last_iterate_errors` | the two error curves of the figures; `averaged_errors` reproduces the authors' accumulation (Figures 3-7, EC.1-EC.3, CLT), `averaged_errors_shifted` is the same average displaced by one iterate (Figures 9-11) |
-| `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities; `asymptotic_covariance(..., replace=False)` applies the finite-population factor `(N-B)/(N-1)` for without-replacement batches (opt-in via `--fpc` in the CLT script) |
+| `averaged_errors` / `averaged_errors_shifted` / `last_iterate_errors` | literal manuscript averages from `traj[n0]`, a compatibility alias for that average, and last-iterate errors |
+| `adaptive_gamma`, `asymptotic_covariance`, `clt_projection` | derived quantities; `asymptotic_covariance(..., replace=False)` applies `(N-B)/(N-1)` for independent batches sampled without replacement |
+| `online_covariance`, `online_projected_variances` | Remark 8 sampled-gradient estimator, and its algebraically identical projected implementation for a parameter sweep |
 
 `batch_gradient_sequence` is a pure speed-up: a learning-rate / momentum sweep
 replays the *same* mini-batches, so the batch gradients are formed once per
@@ -67,10 +66,16 @@ replication).
 
 ## Relationship to the original experiment code
 
+The descriptions below document baseline source provenance. The paper-aligned
+revision corrects signs and averaging endpoints; it does not claim that every
+regenerated array is identical to those historical notebooks. See
+../docs/paper_alignment.md.
+
+
 The scripts re-implement the experiments from notebook prototypes and make them
-runnable as plain Python. The numerical settings (dimension, batch size,
-learning rates, momentum weights, number of replications, seeds) follow those
-that produced the published figures. Momentum weights per panel are documented
+runnable as plain Python. Most numerical settings follow the archived scripts;
+CLT sampling, covariance, and projection choices are recorded explicitly in
+the revised outputs. Momentum weights per panel are documented
 in `../README.md` (Section 5).
 
 The error curves are aggregated over replications by **squaring first and then
@@ -126,8 +131,7 @@ figure line up with the published one:
 * logistic (Figs EC.1-3)  <- `logistic_repeat2_average.ipynb` (averaging,
   moments) and `...的副本.ipynb` (n₀ = 20 variant). The scripts reproduce the
   authors' own recursion, including the special first momentum `g_1 = grad(x_1)`
-  without the `(1 - gamma)` factor. Re-running the notebook's cell verbatim and
-  comparing with `results/logistic/logistic_raw.npz` agrees to 1.1e-15.
+  without the `(1 - gamma)` factor. The current revision complements the labels and corrects the averaging endpoint.
 * MNIST linear (Fig EC.4) <- `logistic_mnist_fixed_alpha_beta.py`, `average.ipynb`,
   `logs-save-logistic/`
 

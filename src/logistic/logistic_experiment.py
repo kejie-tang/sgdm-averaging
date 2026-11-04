@@ -6,9 +6,9 @@ This experiment is reported in the paper's electronic companion (Section EC.7.1)
 Setting
 -------
 N = 20,000, d = 10, a_i ~ N(0, I_d), b_i = 1 with probability
-sigmoid(-theta0^T a_i), where theta0 = (1,...,1)/sqrt(d).  This is the problem
-of Section EC.7.1 with theta0 -> -theta0: flipping every label maps x -> -x,
-so all error norms in Figures EC.1-EC.3 are identical either way.  Batch size
+sigmoid(theta0^T a_i), where theta0 = (1,...,1)/sqrt(d).
+Complementing the historical labels reflects all iterates and the minimizer,
+preserving squared errors.  Batch size
 B = 0.2 N, learning rate alpha = 0.5,
 gamma in {0, 0.3, 0.5, 0.7, 0.8, 0.9} plus the adaptive weight
 gamma = ((1-mu*alpha)/(1+mu*alpha))^2 computed at the population Hessian
@@ -25,12 +25,10 @@ the paper (gamma = 0, 10*n iterations, alpha = 0.5).
 
 Update rule
 -----------
-The authors' recursion is
-
-    m_t = gamma m_{t-1} + (1 - gamma) grad(x_t),   x_{t+1} = x_t - alpha m_t,
-
-with the **first** momentum set to the raw mini-batch gradient, m_1 = grad(x_1),
-i.e. *without* the (1 - gamma) factor.
+Using the manuscript's indexing, the first update uses m_2 = grad(x_1)
+and x_2 = x_1 - alpha m_2. For t >= 2 the ordinary recursion is
+m_{t+1} = gamma m_t + (1-gamma) grad(x_t), x_{t+1} = x_t-alpha m_{t+1}.
+This historical first-step exception must be disclosed in EC.7.1.
 
 Both panels start at t = 0 with the initial point x_1 = 0 (every curve of
 Figure EC.1 begins from the same value, ||x_1 - x^*||^2 = 1.0: the quadratic
@@ -172,30 +170,19 @@ def main():
                 # common starting value of every curve in Figure EC.1).
                 err_last[seed, k, j] = np.linalg.norm(x - x_star)
                 g = gradient(x, xi, yi)
-                # The authors' recursion, verbatim:
-                #     m_t = gamma * m_{t-1} + (1 - gamma) * grad(x_t)
-                # with the *first* momentum set to the raw mini-batch gradient,
-                # m_1 = grad(x_1), without the (1 - gamma) factor.  The
-                # special case is not cosmetic: for gamma = 0.9 it makes the first step
-                # ten times larger, which is what excites the underdamped
-                # oscillation that dominates Figure EC.1(b) (the gamma = 0.9
-                # curve dips to ~1e-2 near t = 15 and then rises to a ~8e-2
-                # hump near t = 28).  Dropping it flattens that hump by ~5x.
+                # Keep the historical raw-gradient first step for the
+                # published transients; disclose this exception in EC.7.1.
+                for n0 in args.n0_list:
+                    if k >= n0:
+                        runs[n0] += x
+                        if k - n0 < ave_len - 1:
+                            err_ave[n0][seed, k - n0, j] = np.linalg.norm(
+                                runs[n0] / (k - n0 + 1) - x_star)
                 if k == 0 and args.first_momentum != "zero":
                     m = g if args.first_momentum == "grad" else (1 - gamma_j) * g
                 else:
                     m = gamma_j * m + (1 - gamma_j) * g
                 x = x - args.alpha * m
-                for n0 in args.n0_list:
-                    # ``x`` has already been updated, so at iteration k it
-                    # holds x_{k+1}: the first averaged iterate is x_{n0+1},
-                    # i.e. the k = n0 case, as in xbar_{n0+t} = (1/t) sum
-                    # x_{n0+1..n0+t}.
-                    if k >= n0:
-                        runs[n0] = runs[n0] + x
-                        if k - n0 < ave_len - 1:
-                            err_ave[n0][seed, k - n0, j] = \
-                                np.linalg.norm(runs[n0] / (k - n0 + 1) - x_star)
 
     print(f"[logistic] mean adaptive gamma = {gamma_mean.mean():.4f}")
 
@@ -216,7 +203,7 @@ def main():
                    ("#1f77b4", "p", ":"),    # SGDM-0.8   C0, markers[3], ls[2]
                    ("#ff7f0e", "P", "-.")]   # SGDM-0.9   C1, markers[4], ls[3]
 
-    def plot_single(fname, curve, idxs, styles, ylab, ylim):
+    def plot_single(fname, curve, idxs, styles, ylab, ylim, start=0):
         """curve: (num_seed, T, n_gammas); idxs: column indices, in legend order."""
         fig = plt.figure(figsize=(4, 4), dpi=150)
         # The geometry of the authors' plotting cells.  It matters visually:
@@ -227,7 +214,8 @@ def main():
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
         for j, (color, marker, ls) in zip(idxs, styles):
-            ax.plot((curve[:, :, j] ** 2).mean(axis=0), label=labels[j],
+            ax.plot(np.arange(start, start + curve.shape[1]),
+                    (curve[:, :, j] ** 2).mean(axis=0), label=labels[j],
                     marker=marker, markevery=0.3, linestyle=ls, color=color)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(ylab)
@@ -245,8 +233,8 @@ def main():
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [4, 5, 6]
 
-    # All six published panels span t = 0, ..., 98 (99 points); the axis limits
-    # below were read off the published panels' tick marks.
+    # Retain 99 points and the historical y limits. Averaged panels now use
+    # t=1,...,99, matching xbar_{n0+t}; last-iterate panels keep index 0,...,98.
     T = ave_len - 1
     YLIM_EC1 = (3.3e-4, 1.42)      # both EC.1 panels
     YLIM_EC2 = (1e-4, 2e-1)        # both EC.2 panels (authors' notebook)
@@ -262,13 +250,13 @@ def main():
     # ---- Figures EC.2-EC.3: averaged, per n0, small/large gamma ----
     n0_first, n0_second = args.n0_list[0], args.n0_list[-1]
     plot_single("fig_ec2_small.png", err_ave[n0_first], idx_small, SMALL_STYLE,
-                r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC2)
+                r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC2, start=1)
     plot_single("fig_ec2_large.png", err_ave[n0_first], idx_large, LARGE_STYLE,
-                r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC2)
+                r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC2, start=1)
     plot_single("fig_ec3_small.png", err_ave[n0_second], idx_small,
-                SMALL_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC3)
+                SMALL_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC3, start=1)
     plot_single("fig_ec3_large.png", err_ave[n0_second], idx_large,
-                LARGE_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC3)
+                LARGE_STYLE, r"$||\bar{x}_{n_0+t}-x^*||^2$", YLIM_EC3, start=1)
 
     np.savez_compressed(os.path.join(args.out, "logistic_raw.npz"),
                         err_last=err_last, gamma_mean=gamma_mean,

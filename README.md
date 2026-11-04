@@ -6,6 +6,12 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 
 ---
 
+**Paper-alignment revision.** The quadratic sign and factorization, averaging
+endpoints, and logistic label direction now follow the manuscript. Figure 12
+has an actual Remark 8 sampled-gradient covariance implementation. See
+[docs/paper_alignment.md](docs/paper_alignment.md) for what changed and the
+limits of comparisons against the historical PDF.
+
 ## 1. Layout
 
 ```
@@ -113,32 +119,36 @@ python src/n0_sensitivity/n0_sensitivity_experiment.py --num_seed 200
 ```
 
 **Figure 6** — SGD and SGDM with the adaptive γ under different condition
-numbers L/μ = 3.31, 9.86, 14.71 (ρ ∈ {1, 5, 10}), n₀ = 250, matching Section 5.1.
+numbers L/μ ≈ 3.3, 9.9, 14.7 (ρ ∈ {1, 5, 10}), n₀ = 250, matching Section 5.1.
 The script computes L/μ from the realised population Hessian with the recipe
-Aᵢ = ρ VᵢVᵢᵀ + 10 I_d and prints those values in the legend;
-`--kappa_labels rounded` prints 3.5, 9.9, 14.7 instead.
+Aᵢ = ρ VᵢᵀVᵢ + 10 I_d and prints the mean values rounded to one decimal;
+`--kappa_labels measured` uses two decimals.
 ```bash
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
 
-**Figure 7** — SGD and SGDM with γ = 0.96 and their averaged versions with
-decaying learning rates αₜ = α₀·(max{n₀,t})^{-1/2}. The script passes
-αₜ = α₀·sqrt(n₀/max{n₀,t}), i.e. the paper's schedule times the constant
-sqrt(n₀); its `--alpha0` is therefore the *unscaled* α₀ divided by sqrt(n₀),
-so the default 0.001 at n₀ = 250 corresponds to a paper α₀ of about 0.0158.
-```bash
+**Figure 7** — SGD / SGDM and averaging with the paper's schedule
+alpha_t=alpha0/sqrt(max(n0,t)). By default alpha0=0.001*sqrt(n0), preserving
+the historical plateau rate 0.001. --alpha0 sets the coefficient literally;
+--initial_lr sets the plateau used when --alpha0 is omitted.
+~~~bash
 python src/decaying/decaying_experiment.py --num_seed 200
-```
+~~~
 
-**Figures 8 and 12** — asymptotic normality of the averaged estimator.
-```bash
+**Figures 8 and 12** — normal approximation and coverage.
+~~~bash
 python src/clt/clt_experiment.py
-```
-* Figure 8 — Frequency of Z for averaged SGD and averaged SGDM, γ = 0.9,
-  n₀ = 1000, n = 2000, over 1000 trials.
-* Figure 12 — The probability P(|Z| < 1.96) for SGD and SGDM, γ = 0.8, 0.9, over
-  α = 2⁻¹¹, …, 2²; an n = 500-iteration trajectory with n₀ = 200 and 1000
-  trials per learning rate.
+~~~
+Figure 8 uses the full-data reference covariance, n=2000, n0=1000.
+Figure 12 uses the Remark 8 estimator from sampled, pre-update gradients,
+n=1000, n0=500. Both default to independent sampling with replacement,
+consistent with Corollary 3. Use --sampling without-replacement to apply
+the corresponding finite-population correction, and --covariance oracle for
+a Figure-12 reference comparison. The historical direction ones/sqrt(d) is
+retained for Figure 12; --projection random is a diagnostic using a fixed
+seed-1 direction, not a reconstruction of an unrecorded PDF setting.
+Failed/non-finite statistics remain in the
+replication denominator and are counted as non-coverage.
 
 **Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. The two
 panels of Figures 9 and 11 are (left) SGD with α ∈ {2⁻⁹, 2⁻⁷, 2⁻⁵} and
@@ -191,7 +201,8 @@ python src/logistic/logistic_experiment.py --num_seed 200
 
 Panel (a) of each figure shows SGD, SGDM-0.3/0.5/0.7 and SGDM-adap; panel (b)
 shows SGDM-adap, SGDM-0.8 and SGDM-0.9 — the (b) panels carry no SGD curve.
-All six panels are drawn for `t = 0, …, 98`, over the axis limits EC.1:
+Each panel retains 99 points: EC.1 uses indices 0,...,98; EC.2–EC.3
+use t=1,...,99 to match the average definition. The axis limits are EC.1:
 3.3e-4 … 1.42, EC.2: 1e-4 … 2e-1, EC.3: 8e-5 … 4e-2.
 
 The panels use the authors' plotting geometry — `figsize=(4, 4)`,
@@ -215,20 +226,20 @@ python src/mnist/mnist_experiment.py --download
 | 3 | `src/quadratic/quadratic_experiment.py` | averaged, n₀ = 500 |
 | 4 | `src/quadratic/quadratic_experiment.py` | γ = 0.96, n₀ = 250, 500 |
 | 5 | `src/n0_sensitivity/n0_sensitivity_experiment.py` | γ = 0.96, n₀ = {250,500,750,1000} |
-| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ = {3.31, 9.86, 14.71}, adaptive γ, n₀ = 250 |
+| 6 | `src/diff_lmu/diff_lmu_experiment.py` | ρ = {1,5,10} → L/μ ≈ {3.3, 9.9, 14.7}, adaptive γ, n₀ = 250 |
 | 7 | `src/decaying/decaying_experiment.py` | decayed α, γ = 0.96, n₀ = 250, 500 |
 | 8 | `src/clt/clt_experiment.py` | n₀ = 1000, n = 2000, γ = 0.9, 1000 trials |
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
 | 10 | `src/sensitivity/sensitivity_experiment.py` | γ = {0.8, 0.9}, T = 500, α = 2⁻¹¹ … 2² |
 | 11 | `src/sensitivity/sensitivity_experiment.py` | averaged, γ = 0.8, n₀ = 500 |
-| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 500, n₀ = 200, 1000 trials, α = 2⁻¹¹ … 2² |
+| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 1000, n₀ = 500, 1000 trials, α = 2⁻¹¹ … 2² |
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
 | 16 | `src/cifar/cifar_experiment.py` | VGG-11 (no BN), B = 128, α = 0.5, 50 epochs; `--mode plot` from `data/cifar_logs/`, `--mode train` to re-train |
-| EC.1 | `src/logistic/logistic_experiment.py` | α = 0.5, (a) γ = {0.3,0.5,0.7,adap} / (b) {adap,0.8,0.9}; `m₁ = g₁` |
-| EC.2 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 10; `m₁ = g₁` |
-| EC.3 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 40; `m₁ = g₁` |
+| EC.1 | `src/logistic/logistic_experiment.py` | α = 0.5, (a) γ = {0.3,0.5,0.7,adap} / (b) {adap,0.8,0.9}; `m₂ = g₁` |
+| EC.2 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 10; `m₂ = g₁` |
+| EC.3 | `src/logistic/logistic_experiment.py` | averaged, n₀ = 40; `m₂ = g₁` |
 | EC.4 | `src/mnist/mnist_experiment.py` | logistic regression, B = 256, α = 1.0 |
 
 ## 6. Notation and conventions
@@ -252,7 +263,7 @@ read against the text line by line:
 | `x*` | `x_star` | minimiser of the population risk |
 | `μ`, `L` | `mu`, `L` | smallest / largest eigenvalue of `A` |
 | `κ = L/μ` | `kappa` | condition number |
-| `xₜ` | `traj[t]` | last iterate (`traj` is zero-based, see below) |
+| `xₜ` | `traj[t-1]` | last iterate (`traj` is zero-based, see below) |
 | `x̄_{n₀+t}` | `averaged_errors(...)` | Polyak-averaged iterate |
 | `Z` | `clt_projection(...)` | projected CLT statistic |
 
@@ -261,19 +272,15 @@ configuration of the same kind — in `src/clt/clt_experiment.py`, `--n_hist` an
 `--n_cov` are the paper's `n` for the histogram and the coverage panel, and
 `gamma_hist` is its `γ` for the histogram.
 
-**Indexing.** A trajectory from `sgdm_core.run_sgd` / `run_sgdm` is zero-based:
-`traj[k]` is the paper's `x_{k+1}`, so `traj[0]` is the initial point `x₁`. The
-Polyak average is accumulated from `traj[n0 + 1]` onwards and reported for
-`t = 1, 2, …, n - n0 - 1`, which is the convention of the authors' notebooks
-(the pre-update fallback aside, the accumulate happens after the update in the
-same iteration). `sgdm_core.averaged_errors_shifted` gives the literal
-`x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j` instead. Figures 3-7, EC.1-EC.3 and
-the CLT study use the first; Figures 9-11 (the sensitivity sweep) accumulate
-the pre-update iterate and so follow the literal one.
+**Indexing.** A trajectory is zero-based: traj[k] is the paper's x_{k+1}.
+Averaging starts at traj[n0], exactly x_{n0+1}, and retains n-n0 stored
+iterates. averaged_errors_shifted is now a compatibility alias for this same
+literal definition. Historical notebooks used an extra one-iterate shift.
+
 
 ### 6.2 Conventions
 
-* **Update.** `m_t = γ m_{t-1} + (1-γ) g_t`, `x_{t+1} = x_t - α m_t`; SGD is the
+* **Update.** `m_{t+1} = γ m_t + (1-γ) g_t`, `x_{t+1} = x_t - α m_{t+1}`; SGD is the
   `γ = 0` case. In PyTorch this is `SGD(lr = α(1-γ), momentum = γ)` throughout,
   including Figure 16: `torch.optim.SGD` scales its momentum buffer by `lr`, so
   the unscaled `lr = α` would make the effective step `α/(1-γ)` (10× too large
@@ -281,13 +288,12 @@ the pre-update iterate and so follow the literal one.
   `docs/verify_momentum_equivalence.py` checks it numerically (agreement to
   1e-16 with the scaled rate).
 * **First step.** The logistic experiment (Figures EC.1-EC.3) starts the
-  momentum from the raw mini-batch gradient, `m₁ = g₁`, rather than from
+  momentum from the raw mini-batch gradient, `m₂ = g₁`, rather than from
   `(1-γ) g₁`. Every other experiment uses the plain recursion above with
-  `m₀ = 0`, i.e. `m₁ = (1-γ) g₁`.
+  `m₁ = 0`, i.e. `m₂ = (1-γ) g₁`.
 * **Adaptive weight.** `γ = ((1 - μα)/(1 + μα))²`, with μ the smallest
   eigenvalue of the population Hessian.
-* **Averaged iterate.** `x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j`, evaluated in
-the authors' accumulation (``traj[n0+1]`` first, see *Indexing* above).
+* **Averaged iterate.** `x̄_{n₀+t} = (1/t) Σ_{j=n₀+1}^{n₀+t} x_j`, evaluated from traj[n0], as defined in the paper.
 * **Trajectory indexing.** The last-iterate panels are drawn over the
   zero-based array index, so their `t = 0` is the initial point `x₁` and the
   curve is `‖x_{t+1} − x*‖` for `t = 0, 1, 2, …`; the averaged panels plot

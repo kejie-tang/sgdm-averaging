@@ -3,14 +3,14 @@ Figure 7: decaying learning rates.
 
 Setting
 -------
-Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i V_i^T + 10 I_d,
+Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i^T V_i + 10 I_d,
 batch size B = 0.2 N, n = 2000 iterations, 200 replications, momentum weight
 gamma = 0.96.  The learning rate decays as
 
-    alpha_t = alpha0 * sqrt(n0 / max(n0, t)),       alpha0 = 0.001,
-
-i.e. alpha0 up to the burn-in and alpha0 * sqrt(n0/t) afterwards, which is the
-paper's alpha_t = alpha0 (max{n0, t})^{-1/2} up to the constant sqrt(n0).
+    alpha_t = alpha0 / sqrt(max(n0,t)).
+The default uses alpha0=0.001*sqrt(n0), preserving the historical
+initial plateau rate of 0.001. --alpha0 sets the paper's coefficient
+directly; --initial_lr controls the default plateau.
 This schedule does not require knowing the horizon n in advance.
 
 Panel layout
@@ -63,7 +63,10 @@ def main():
     ap.add_argument("--d", type=int, default=10, help="dimension d of x")
     ap.add_argument("--n", type=int, default=2000, help="number of iterations n")
     ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
-    ap.add_argument("--alpha0", type=float, default=0.001, help="alpha0 of the decaying schedule")
+    ap.add_argument("--alpha0", type=float, default=None,
+                    help="coefficient in alpha_t=alpha0/sqrt(max(n0,t))")
+    ap.add_argument("--initial_lr", type=float, default=0.001,
+                    help="initial plateau rate when --alpha0 is omitted")
     ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
     ap.add_argument("--gamma", type=float, default=0.96, help="momentum weight gamma (0 is SGD)")
     ap.add_argument("--n0_list", type=int, nargs="+", default=[250, 500], help="averaging burn-in n0, one value per panel")
@@ -81,8 +84,8 @@ def main():
 
     err_sgd = {n0: np.zeros((args.num_seed, n)) for n0 in n0_list}
     err_sgdm = {n0: np.zeros((args.num_seed, n)) for n0 in n0_list}
-    ave_sgd = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
-    ave_sgdm = {n0: np.zeros((args.num_seed, n - n0 - 1)) for n0 in n0_list}
+    ave_sgd = {n0: np.zeros((args.num_seed, n - n0)) for n0 in n0_list}
+    ave_sgdm = {n0: np.zeros((args.num_seed, n - n0)) for n0 in n0_list}
 
     for seed in range(args.num_seed):
         if seed % 20 == 0:
@@ -102,7 +105,9 @@ def main():
         # on n0, so each panel is a different run and gets its own last-iterate
         # curve as well as its own averaged curve.
         for n0 in n0_list:
-            alphas = decaying_schedule(n0, n, args.alpha0)
+            coefficient = (args.alpha0 if args.alpha0 is not None
+                           else args.initial_lr * np.sqrt(n0))
+            alphas = decaying_schedule(n0, n, coefficient)
 
             traj = run_sgd(Ai, bi, x_star, initial, batch_size, schedule,
                            alphas, n, A_seq=A_seq, b_seq=b_seq)
@@ -149,7 +154,8 @@ def main():
         _panel(n0, f"fig_decay_n0_{n0}.png")
 
     arrays = dict(n0_list=np.array(n0_list), gamma=args.gamma,
-                  alpha0=args.alpha0)
+                  initial_lr=args.initial_lr,
+                  alpha0=np.nan if args.alpha0 is None else args.alpha0)
     for n0 in n0_list:
         arrays[f"err_sgd_{n0}"] = err_sgd[n0]
         arrays[f"err_sgdm_{n0}"] = err_sgdm[n0]

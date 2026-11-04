@@ -3,9 +3,8 @@ Figures 9-11: sensitivity of SGD and SGDM to the learning rate.
 
 Setting
 -------
-N = 20,000, d = 10, A_i = (V_i V_i^T + 1.03 I)/1.04, batch size B = 0.2 N,
-b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.  The normalisation puts every
-eigenvalue below 1; the realised condition number is L/mu ~ 14.5.
+N = 20,000, d = 10, A_i = (V_i^T V_i + 1.03 I)/1.04, batch size B = 0.2 N,
+b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.  The realised condition number is L/mu ~ 14.5.
 
 Figure 9 (last iterate, ||x_t - x^*||^2):
     left panel  -- SGD with alpha in {2^-9, 2^-7, 2^-5};
@@ -101,7 +100,7 @@ def _run_grid(A_seq, b_seq, x_star, initial, alphas, gammas, n, T, n0):
                     cnt += 1
                     diff = run / cnt - x_star
                     ave_curve.append(float(np.sum(diff * diff)))
-                g = A_seq[k] @ x + b_seq[k]
+                g = A_seq[k] @ x - b_seq[k]
                 if gamma == 0.0:
                     x = x - alpha * g
                 else:

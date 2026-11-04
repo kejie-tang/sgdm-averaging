@@ -98,12 +98,12 @@ def main():
     batch_size = int(round(args.batch_frac * N))
     n0_list = sorted(set(args.n0_list) | {FIG3_N0})
     for n0 in n0_list:
-        if n0 + 1 >= n:
+        if n0 >= n:
             raise ValueError(f"n0={n0} must be smaller than n={n}.")
     # The averaged curves run to the end of the trajectory, exactly as in the
-    # published panels: xbar_{n0+t} for t = 1, ..., n - n0 - 1 (the last
-    # iterate that can be averaged in is x_{n-1}).
-    ave_len = {n0: n - n0 - 1 for n0 in n0_list}
+    # published panels: xbar_{n0+t} for t = 1, ..., n - n0 (the last
+    # iterate that can be averaged in is x_n).
+    ave_len = {n0: n - n0 for n0 in n0_list}
 
     # The two fixed momentum weight sets of Figure 2, plus the adaptive
     # weight gamma = ((1 - mu alpha)/(1 + mu alpha))^2 in the last slot.

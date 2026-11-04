@@ -9,16 +9,11 @@ The statistic (Eq. (def:z))
         * sum_{t=n0+1}^{n} omega^T (x_t - x^*) / sqrt(n - n0)
 is asymptotically N(0, 1) by Corollary 3.
 
-Figure 8 : frequency of Z for averaged SGD and averaged SGDM, gamma = 0.9,
-           n0 = 1000, n = 2000, over 1000 trials.  Mini-batches are drawn
-           without replacement, as in Section 5.1.
-Figure 12: empirical P(|Z| < 1.96) as a function of the learning rate for SGD
-           and SGDM (gamma = 0.8, 0.9), over the grid alpha = 2^-11 ... 2^2,
-           with a trajectory of n = 500 iterations, a burn-in of n0 = 200 and
-           1000 trials per learning rate.
-
-           The settings are those of Section 5.2: n = 1000, n0 = 500, one
-           fixed projection omega.  The plateau sits near 0.95.
+Figure 8 : full-data reference normalization, n=2000, n0=1000.
+Figure 12: Remark 8 sampled-gradient covariance, n=1000, n0=500.
+Both default to independent sampling WITH replacement, as in Corollary 3.
+--sampling without-replacement applies the finite-population correction.
+--covariance oracle provides the full-data reference comparison for Figure 12.
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz
@@ -37,7 +32,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import (  # noqa: E402
     asymptotic_covariance, batch_gradient_sequence, clt_projection,
-    make_batch_schedule,
+    make_batch_schedule, draw_quadratic_problem, build_quadratic_data,
+    run_sgd, run_sgdm, online_projected_variances,
 )
 
 import matplotlib
@@ -70,6 +66,42 @@ def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
     plt.close(fig)
 
 
+
+def coverage_trial(data, schedule, batch_size, alphas, gammas, n, n0,
+                   covariance="online", replace=True):
+    """One full Figure-12 sweep; no selection or dropping of failed trials."""
+    Ai, bi = data["Ai"], data["bi"]
+    xs, initial = data["x_star"], data["initial"]
+    A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
+    phi = data.get("phi", np.ones_like(xs) / np.sqrt(len(xs)))
+    trajectories = []
+    with np.errstate(over="ignore", invalid="ignore"):
+        for gamma in gammas:
+            for alpha in alphas:
+                trajectories.append(run_sgdm(
+                    Ai, bi, xs, initial, batch_size, schedule, alpha, gamma, n,
+                    A_seq=A_seq, b_seq=b_seq))
+        trajectories = np.asarray(trajectories)
+        numerator = np.sqrt(n - n0) * (
+            (trajectories[:, n0:].mean(axis=1) - xs)[..., 0] @ phi[:, 0])
+    if covariance == "online":
+        # A_i >= (1.03/1.04) I for this experiment: this is a known
+        # construction bound, not an oracle estimate of the empirical mu.
+        variances = online_projected_variances(
+            Ai, bi, trajectories, batch_size, schedule, phi, 1.03 / 1.04,
+            replace=replace, A_seq=A_seq)
+    elif covariance == "oracle":
+        cov = asymptotic_covariance(
+            Ai, bi, xs, data["A"], batch_size, replace=replace)
+        variances = np.full(len(trajectories), float((phi.T @ cov @ phi).item()))
+    else:
+        raise ValueError(f"Unknown covariance method: {covariance}")
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        z = numerator / np.sqrt(variances)
+    invalid = ~np.isfinite(trajectories).all(axis=(1, 2, 3)) | ~np.isfinite(z)
+    z[invalid] = np.nan
+    return z.reshape(len(gammas), len(alphas))
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--N", type=int, default=20000, help="training-set size N")
@@ -80,27 +112,18 @@ def main():
     ap.add_argument("--n_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
     ap.add_argument("--gamma_hist", type=float, default=0.9)
-    # coverage experiment (Figure 12): an n = 500-iteration trajectory with a
-    # burn-in of n0 = 200, averaged over 1000 trials per learning rate.
-    ap.add_argument("--n_cov", type=int, default=1000,
-                    help="iterations of the coverage sweep (Section 5.2)")
-    ap.add_argument("--n0_cov", type=int, default=500,
-                    help="averaging burn-in of the coverage sweep")
+    ap.add_argument("--n_cov", type=int, default=1000)
+    ap.add_argument("--n0_cov", type=int, default=500)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
-    # learning rates of Figure 12: alpha = 2^2 down to 2^-11, as in the paper
-    ap.add_argument("--exps", type=int, nargs="+",
-                    default=list(range(2, -12, -1)))
-    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9], help="momentum weights of the coverage sweep")
-    # The coverage sweep draws its mini-batches without replacement, so the
-    # finite-population factor (N-B)/(N-1) = 0.8 at B = 0.2 N belongs in the
-    # covariance.  It is on by default; --no-fpc switches back to the i.i.d.
-    # Omega/B of Corollary 3.
-    ap.add_argument("--fpc", dest="fpc", action="store_true", default=True,
-                    help="apply the finite-population factor (N-B)/(N-1) to the "
-                         "covariance of the coverage sweep (default)")
-    ap.add_argument("--no-fpc", dest="fpc", action="store_false",
-                    help="use the plain Omega/B covariance instead, i.e. the "
-                         "i.i.d. (with-replacement) formula of Corollary 3")
+    ap.add_argument("--exps", type=int, nargs="+", default=list(range(2, -12, -1)))
+    ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
+    ap.add_argument("--sampling", choices=["with-replacement", "without-replacement"],
+                    default="with-replacement",
+                    help="independent batches; default matches Corollary 3")
+    ap.add_argument("--covariance", choices=["online", "oracle"], default="online",
+                    help="Figure 12 covariance: Remark 8 estimator or reference")
+    ap.add_argument("--projection", choices=["ones", "random"], default="ones",
+                    help="Figure 12: historical ones/sqrt(d), or a fixed seed-1 random direction")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "clt"))
@@ -110,31 +133,18 @@ def main():
     N, d = args.N, args.d
     batch_size = int(round(args.batch_frac * N))
 
-    # --- shared problem instance for the histogram experiment ---
-    # One seed-1 stream supplies the data, the starting point *and* the
-    # projection direction, in the authors' order; the per-trial mini-batch
-    # schedules are then drawn from their own per-trial streams below.
+    if not (0 <= args.n0_hist < args.n_hist and 0 <= args.n0_cov < args.n_cov):
+        ap.error("Require 0 <= burn-in < trajectory length")
+    replace = args.sampling == "with-replacement"
     rng = np.random.RandomState(1)
-    V = rng.rand(N, d, d)
-    Ai = np.empty((N, d, d))
-    for i in range(N):
-        Vi = V[i]
-        Ai[i] = Vi @ Vi.T + 10.0 * np.eye(d)
-    bi = rng.rand(N, d, 1)
-    A = Ai.mean(axis=0)
-    b = bi.mean(axis=0)
-    x_star = np.linalg.solve(A, -b)
-    noise = rng.rand(d, 1)
-    noise /= np.linalg.norm(noise)
-    initial = x_star + noise * 0.1
+    data = build_quadratic_data(*draw_quadratic_problem(N, d, rng))
+    Ai, bi, A = data["Ai"], data["bi"], data["A"]
+    x_star, initial = data["x_star"], data["initial"]
     phi = rng.rand(d, 1)
     phi /= np.linalg.norm(phi)
     alpha_hist = 0.001
-
-    # Section 5.1 draws the mini-batches without replacement, so the covariance
-    # carries the finite-population factor (N-B)/(N-1), as for Figure 12.
-    cov = asymptotic_covariance(Ai, bi, x_star, A, batch_size,
-                                replace=not args.fpc)
+    cov = asymptotic_covariance(
+        Ai, bi, x_star, A, batch_size, replace=replace)
 
     z_sgd = np.zeros(args.num_seed)
     z_sgdm = np.zeros(args.num_seed)
@@ -142,7 +152,7 @@ def main():
         if seed % 100 == 0:
             print(f"[clt-hist] seed {seed}/{args.num_seed}", flush=True)
         schedule = make_batch_schedule(N, batch_size, args.n_hist, seed,
-                                       replace=False)
+                                       replace=replace)
         # averaged SGD and averaged SGDM replay the same batches
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule,
                                                args.n_hist)
@@ -162,58 +172,27 @@ def main():
     hist_figure(z_sgdm, f"SGDM-{args.gamma_hist}",
                 "fig_clt_sgdm.png", args.out, color="#ff7f0e")
 
-    # --- coverage vs. learning rate (Figure 12) ---
     rng2 = np.random.RandomState(1)
-    V2 = rng2.rand(N, d, d)
-    Ai2 = np.empty((N, d, d))
-    for i in range(N):
-        Vi = V2[i]
-        Ai2[i] = (Vi @ Vi.T + 1.03 * np.eye(d)) / 1.04
-    bi2 = rng2.rand(N, d, 1)
-    A2 = Ai2.mean(axis=0)
-    b2 = bi2.mean(axis=0)
-    x_star2 = np.linalg.solve(A2, -b2)
-    noise2 = rng2.rand(d, 1)
-    noise2 /= np.linalg.norm(noise2)
-    initial2 = x_star2 + noise2 * 0.1
-    # The coverage sweep draws its mini-batches *without* replacement
-    # (replace=False below), so the covariance carries the finite-population
-    # factor (N-B)/(N-1) = 0.8 at B = 0.2 N.  Default; --no-fpc omits it.
-    cov2 = asymptotic_covariance(Ai2, bi2, x_star2, A2, batch_size,
-                                 replace=not args.fpc)
-
-    # A single fixed unit projection omega, as in Section 5.2: the sweep tracks
-    # one confidence interval across learning rates rather than a new direction
-    # per trial.
-    phi_cov = np.ones((d, 1)) / np.sqrt(d)
-
+    data2 = build_quadratic_data(
+        *draw_quadratic_problem(N, d, rng2), shift=1.03, norm_const=1.04)
+    phi_cov = (rng2.rand(d, 1) if args.projection == "random"
+               else np.ones((d, 1)))
+    phi_cov /= np.linalg.norm(phi_cov)
+    data2["phi"] = phi_cov
     alphas = [2.0 ** e for e in args.exps]
-    n_alphas, n_gammas = len(alphas), len(args.gammas)
-    cover_sgd = np.zeros((args.num_seed_cov, n_alphas))
-    cover_sgdm = np.zeros((args.num_seed_cov, n_gammas, n_alphas))
-    z1_96 = 1.96
-
+    gamma_all = [0.0] + list(args.gammas)
+    z_cov = np.full((args.num_seed_cov, len(gamma_all), len(alphas)), np.nan)
     for seed in range(args.num_seed_cov):
-        if seed % 200 == 0:
+        if seed % 20 == 0:
             print(f"[clt-cov] seed {seed}/{args.num_seed_cov}", flush=True)
-        schedule = make_batch_schedule(N, batch_size, args.n_cov, seed,
-                                       replace=False)
-        # Every (gamma, alpha) pair in the sweep replays the same batches, so
-        # the batch gradients are formed once per trial.
-        A_seq, b_seq = batch_gradient_sequence(Ai2, bi2, batch_size, schedule,
-                                               args.n_cov)
-        for ai_, alpha in enumerate(alphas):
-            z, _ = clt_projection(
-                Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
-                args.n_cov, args.n0_cov, cov2, gamma=0.0,
-                phi=phi_cov, seed=seed, A_seq=A_seq, b_seq=b_seq)
-            cover_sgd[seed, ai_] = 1.0 if abs(z) <= z1_96 else 0.0
-            for gi_, gamma in enumerate(args.gammas):
-                zb, _ = clt_projection(
-                    Ai2, bi2, x_star2, initial2, batch_size, schedule, alpha,
-                    args.n_cov, args.n0_cov, cov2, gamma=gamma,
-                    phi=phi_cov, seed=seed, A_seq=A_seq, b_seq=b_seq)
-                cover_sgdm[seed, gi_, ai_] = 1.0 if abs(zb) <= z1_96 else 0.0
+        schedule = make_batch_schedule(
+            N, batch_size, args.n_cov, seed, replace=replace)
+        z_cov[seed] = coverage_trial(
+            data2, schedule, batch_size, alphas, gamma_all,
+            args.n_cov, args.n0_cov, args.covariance, replace)
+    covered = np.isfinite(z_cov) & (np.abs(z_cov) <= 1.96)
+    cover_sgd = covered[:, 0, :].astype(float)
+    cover_sgdm = covered[:, 1:, :].astype(float)
 
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
@@ -241,7 +220,14 @@ def main():
     np.savez_compressed(os.path.join(args.out, "clt_raw.npz"),
                         z_sgd=z_sgd, z_sgdm=z_sgdm,
                         cover_sgd=cover_sgd, cover_sgdm=cover_sgdm,
-                        exps=np.array(args.exps), gammas=np.array(args.gammas))
+                        exps=np.array(args.exps), gammas=np.array(args.gammas), z_cov=z_cov,
+                        valid_cov=np.isfinite(z_cov), n_hist=args.n_hist,
+                        n0_hist=args.n0_hist, n_cov=args.n_cov, n0_cov=args.n0_cov,
+                        sampling=args.sampling, covariance=args.covariance,
+                        projection=args.projection, phi_cov=phi_cov,
+                        phi_hist=phi, N=N, d=d, batch_size=batch_size,
+                        alpha_hist=alpha_hist, gamma_hist=args.gamma_hist,
+                        data_seed=1, lambda_lower=1.03 / 1.04)
     print(f"[clt] results saved to {os.path.abspath(args.out)}")
 
 

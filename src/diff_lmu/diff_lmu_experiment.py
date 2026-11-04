@@ -3,10 +3,10 @@ Figure 6: performance under different condition numbers L/mu.
 
 Setting
 -------
-Quadratic loss with A_i = rho * V_i V_i^T + 10 I_d for rho in {1, 5, 10}.
-The realised condition numbers L/mu are 3.3, 9.9 and 14.7; the printed labels
-are the realised 3.31, 9.86 and 14.71 quoted in Section 5.1 (see
-``KAPPA_LABELS_MEASURED``).  Otherwise the
+Quadratic loss with A_i = rho * V_i^T V_i + 10 I_d for rho in {1, 5, 10}.
+The realised mean condition numbers L/mu are approximately 3.3, 9.9, 14.7.
+Labels are computed from the actual data, including non-default rho values.
+Otherwise the
 setup of Section 5.1: N = 20,000, d = 10, batch
 size B = 0.2 N, learning rate
 alpha = 0.001, n = 1500 iterations, 200 replications.  The momentum weight is
@@ -54,12 +54,7 @@ LINESTYLES = ["-.", "--", ":", "-"]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
           '#8c564b', '#e377c2', '#7f7f7f']
 
-# Legend labels of Figure 6.  The default prints the realised condition numbers
-# of the first replication, 3.31 / 9.86 / 14.71, which is what Section 5.1
-# quotes (L/mu = 3.3).  ``--kappa_labels rounded`` prints 3.5 / 9.9 / 14.7 for
-# the earlier draft of the caption.
-KAPPA_LABELS_MEASURED = [3.31, 9.86, 14.71]
-KAPPA_LABELS_ROUNDED = [3.5, 9.9, 14.7]
+# Legend values are computed from the actual data and requested rho values.
 
 
 def main():
@@ -73,9 +68,8 @@ def main():
     ap.add_argument("--n0", type=int, default=250, help="averaging burn-in n0")
     ap.add_argument("--rho_list", type=float, nargs="+", default=[1.0, 5.0, 10.0])
     ap.add_argument("--kappa_labels", choices=["measured", "rounded"],
-                    default="measured",
-                    help="legend values of L/mu: the realised 3.31/9.86/14.71 "
-                         "(default) or 3.5/9.9/14.7")
+                    default="rounded",
+                    help="round actual mean condition numbers to one (default) or two decimals")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "diff_lmu"))
@@ -88,9 +82,7 @@ def main():
         raise ValueError(f"n0={n0} must be smaller than n={n}.")
     batch_size = int(round(args.batch_frac * N))
     rho_list = list(args.rho_list)
-    kappa_labels = (KAPPA_LABELS_ROUNDED if args.kappa_labels == "rounded"
-                    else KAPPA_LABELS_MEASURED)
-    ave_len = n - n0 - 1
+    ave_len = n - n0
 
     err_sgd = np.zeros((args.num_seed, n, len(rho_list)))
     err_sgdm = np.zeros((args.num_seed, n, len(rho_list)))
@@ -116,8 +108,7 @@ def main():
             data = build_quadratic_data(V, bi_r, u, rho=rho, shift=10.0)
             Ai, bi = data["Ai"], data["bi"]
             x_star, mu, initial = data["x_star"], data["mu"], data["initial"]
-            if seed == 0:
-                kappa_mean[j] = data["L"] / mu
+            kappa_mean[j] += data["L"] / mu / args.num_seed
             gamma = adaptive_gamma(mu, args.alpha)
             gamma_mean[seed, j] = gamma
             # SGD and SGDM share the batches, so the batch gradients are formed
@@ -152,15 +143,13 @@ def main():
         # The published panels list the last-iterate curves first and the
         # averaged ones after, so the two loops are separate.
         for j, rho in enumerate(rho_list):
-            cond = (kappa_labels[j] if j < len(kappa_labels)
-                    else kappa_mean[j])
+            cond = round(kappa_mean[j], 1 if args.kappa_labels == "rounded" else 2)
             ax.plot(np.arange(n), (err[:, :, j] ** 2).mean(axis=0),
                     label=rf"{last_label}-$L/\mu={cond:g}$",
                     marker=marker, markevery=0.3,
                     linestyle=":", color=colors[j])
         for j, rho in enumerate(rho_list):
-            cond = (kappa_labels[j] if j < len(kappa_labels)
-                    else kappa_mean[j])
+            cond = round(kappa_mean[j], 1 if args.kappa_labels == "rounded" else 2)
             ya = (ave[:, :, j] ** 2).mean(axis=0)
             ax.plot(np.arange(n0 + 1, n0 + 1 + ya.size), ya,
                     label=rf"{ave_label}-$L/\mu={cond:g}$",
