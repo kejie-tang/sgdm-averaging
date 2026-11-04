@@ -149,7 +149,7 @@ def clt(args):
     rng=np.random.RandomState(1)
     V,b,u=old.draw_quadratic_problem(20000,10,rng)
     before=old.build_quadratic_data(V,b,u,shift=1.03,norm_const=1.04)
-    after=new.build_quadratic_data(V.transpose(0,2,1),b,u,shift=1.03,norm_const=1.04)
+    after=new.build_quadratic_data(V.transpose(0,2,1),b,u,shift=1.0)
     phi=np.ones((10,1))/np.sqrt(10)
     if args.random_projection:
         after["phi"] = rng.rand(10,1)
@@ -176,6 +176,8 @@ def clt(args):
             "phi_before":phi,"phi_after":after.get("phi",phi)}
     stats={"trials":args.trials,"N":20000,"n":n,"n0":n0,
            "binomial_standard_error_at_95pct":float(np.sqrt(.95*.05/args.trials)),
+           "hessian_before":"(V.T@V+1.03I)/1.04",
+           "hessian_after":"V.T@V+I",
            "projection_before":"ones/sqrt(d)",
            "projection_after":"seed-1 random" if args.random_projection else "ones/sqrt(d)",
            "note":"Baseline is current code at ef465cc, not extracted PDF figure values."}

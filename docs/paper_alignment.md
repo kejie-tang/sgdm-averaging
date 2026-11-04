@@ -64,7 +64,7 @@ V_hat = H_tilde^{-1} S_hat H_tilde^{-1} / B
 ```
 
 Hessian eigenvalues are floored at `lambda_lower/2`. The construction bound
-`lambda_lower = 1.03/1.04` is known from the generated Hessians; it does not use
+`lambda_lower = 1` is known from the generated Hessians; it does not use
 the empirical minimum eigenvalue or the oracle minimizer. The full matrix
 estimator is available as `online_covariance`. For a multi-configuration sweep,
 `online_projected_variances` calculates the exact projection of that estimator
@@ -87,11 +87,25 @@ a new figure must be identified by its recorded protocol, rather than called an
 exact reproduction of that image. A single finite-horizon coverage curve assesses
 normal calibration, rather than proving convergence in distribution.
 
+## Simplified Section 5.2 setting
+
+Following the author's preference, Figures 9–12 now use `A_i=V_i.T@V_i+I`.
+The historical normalization is retained only in comparison controls, not in
+the experiment defaults. The manuscript's matrix formula can therefore remain
+as written; its Gaussian generation and condition number still need correction.
+The 200-trajectory Figure-12 results from commit d76c722 used the previous
+normalized Hessians and are historical diagnostics, not results from this setting.
+Figure 8 and Section 5.1 keep their `+10I` setting.
+Across data seeds 0–199, the mean condition number is 14.70561. A 20-seed
+paired check at N=20,000, d=10, B=4,000 retained the same finite-horizon
+stable grid limits (1/16, 1/2, 1 for gamma=0, 0.8, 0.9). A separate ten-trajectory
+online-covariance pilot ran both Hessians on identical with-replacement batches;
+the formal 1000-trajectory Figure-12 experiment has not been rerun.
+
 ## Manuscript changes still needed
 
-The code cannot preserve both the current curves and the Gaussian description
-in Section 5.2: use uniform entries, `A_i=(V_i.T@V_i+1.03I)/1.04`, uniform positive
-`b_i`, and condition number approximately 14.5. Section 5.1 and equation (4) can
+To describe the simplified Section 5.2 experiments, use uniform entries, `A_i=V_i.T@V_i+I`, uniform positive
+`b_i`, and condition number approximately 14.7. Section 5.1 and equation (4) can
 remain as written.
 
 Keep the MNIST training and cumulative loss curves. Correct the model formula to

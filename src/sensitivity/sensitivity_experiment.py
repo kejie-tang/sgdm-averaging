@@ -3,8 +3,8 @@ Figures 9-11: sensitivity of SGD and SGDM to the learning rate.
 
 Setting
 -------
-N = 20,000, d = 10, A_i = (V_i^T V_i + 1.03 I)/1.04, batch size B = 0.2 N,
-b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.  The realised condition number is L/mu ~ 14.5.
+N = 20,000, d = 10, A_i = V_i^T V_i + I, batch size B = 0.2 N,
+b_i ~ U[0, 1]^d.  Learning rates alpha = 2^e.  The realised condition number is L/mu ~ 14.7.
 
 Figure 9 (last iterate, ||x_t - x^*||^2):
     left panel  -- SGD with alpha in {2^-9, 2^-7, 2^-5};
@@ -164,8 +164,7 @@ def main():
             print(f"[sensitivity] seed {seed}/{args.num_seed}", flush=True)
         rng = np.random.RandomState(seed)
         V, bi_r, u = draw_quadratic_problem(N, d, rng)
-        data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=1.03,
-                                    norm_const=1.04)
+        data = build_quadratic_data(V, bi_r, u, rho=1.0, shift=1.0)
         Ai, bi = data["Ai"], data["bi"]
         x_star, initial = data["x_star"], data["initial"]
         schedule = make_batch_schedule(N, batch_size, n, seed, replace=False,
@@ -296,7 +295,8 @@ def main():
                         final_exps=np.array(FINAL_EXPS),
                         sgd_curve_exps=np.array(SGD_CURVE_EXPS),
                         sgdm_curve_exps=np.array(SGDM_CURVE_EXPS),
-                        gammas=np.array(args.gammas), T=T, n0=n0, n=n)
+                        gammas=np.array(args.gammas), T=T, n0=n0, n=n,
+                        hessian="V.T@V+I", N=N, d=d, batch_size=batch_size)
     print(f"[sensitivity] results saved to {os.path.abspath(args.out)}")
 
 

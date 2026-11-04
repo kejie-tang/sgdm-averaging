@@ -111,9 +111,9 @@ def build_quadratic_data(V, bi, u, rho=1.0, shift=10.0, norm_const=None):
         Section 5.1.
     norm_const : float or None
         If given, divide ``(rho * V_i^T V_i + shift * I)`` by this constant
-        before forming A, b and x^*.  The sensitivity experiment (Section 5.2)
-        uses ``rho=1, shift=1.03, norm_const=1.04``, i.e. the authors'
-        ``(V_i^T V_i + 1.03 I)/1.04``.
+        before forming A, b and x^*. The simplified Section 5.2 experiment
+        uses ``rho=1, shift=1, norm_const=None``. This optional scale is
+        retained for comparisons with historical settings.
 
     Returns
     -------

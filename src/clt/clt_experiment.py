@@ -4,6 +4,7 @@ Figures 8 and 12: asymptotic normality of the averaged SGD / SGDM estimator.
 Setting
 -------
 Quadratic loss, N = 20,000, d = 10, B = 0.2 N.
+Figure 8 uses A_i=V_i^T V_i+10I; Figure 12 uses A_i=V_i^T V_i+I.
 The statistic (Eq. (def:z))
     Z = sqrt(B) / (sigma * sqrt(omega^T Sigma^{-1} Omega Sigma^{-1} omega))
         * sum_{t=n0+1}^{n} omega^T (x_t - x^*) / sqrt(n - n0)
@@ -85,10 +86,11 @@ def coverage_trial(data, schedule, batch_size, alphas, gammas, n, n0,
         numerator = np.sqrt(n - n0) * (
             (trajectories[:, n0:].mean(axis=1) - xs)[..., 0] @ phi[:, 0])
     if covariance == "online":
-        # A_i >= (1.03/1.04) I for this experiment: this is a known
-        # construction bound, not an oracle estimate of the empirical mu.
+        # A_i >= I for the simplified experiment. A historical comparison may
+        # supply its own construction bound; no empirical/oracle mu is used.
+        lambda_lower = data.get("lambda_lower", 1.0)
         variances = online_projected_variances(
-            Ai, bi, trajectories, batch_size, schedule, phi, 1.03 / 1.04,
+            Ai, bi, trajectories, batch_size, schedule, phi, lambda_lower,
             replace=replace, A_seq=A_seq)
     elif covariance == "oracle":
         cov = asymptotic_covariance(
@@ -174,7 +176,7 @@ def main():
 
     rng2 = np.random.RandomState(1)
     data2 = build_quadratic_data(
-        *draw_quadratic_problem(N, d, rng2), shift=1.03, norm_const=1.04)
+        *draw_quadratic_problem(N, d, rng2), shift=1.0)
     phi_cov = (rng2.rand(d, 1) if args.projection == "random"
                else np.ones((d, 1)))
     phi_cov /= np.linalg.norm(phi_cov)
@@ -227,7 +229,7 @@ def main():
                         projection=args.projection, phi_cov=phi_cov,
                         phi_hist=phi, N=N, d=d, batch_size=batch_size,
                         alpha_hist=alpha_hist, gamma_hist=args.gamma_hist,
-                        data_seed=1, lambda_lower=1.03 / 1.04)
+                        data_seed=1, lambda_lower=1.0, hessian_cov="V.T@V+I")
     print(f"[clt] results saved to {os.path.abspath(args.out)}")
 
 

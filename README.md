@@ -150,7 +150,9 @@ seed-1 direction, not a reconstruction of an unrecorded PDF setting.
 Failed/non-finite statistics remain in the
 replication denominator and are counted as non-coverage.
 
-**Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. The two
+**Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. We use
+iid Uniform(0,1) entries, A_i=V_i^T V_i+I and condition number about 14.7;
+Figure 12 uses the same simplified Hessians. The two
 panels of Figures 9 and 11 are (left) SGD with α ∈ {2⁻⁹, 2⁻⁷, 2⁻⁵} and
 (right) SGDM with γ = 0.8 and α ∈ {2⁻⁹, …, 2⁻¹}.
 ```bash
