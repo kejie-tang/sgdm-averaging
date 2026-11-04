@@ -47,45 +47,65 @@ different initialization. `--first_momentum scaled` permits a comparison.
 
 ## Figures 8 and 12
 
-Both CLT experiments now default to independent sampling **with replacement**,
-matching the iid mini-batch model in Corollary 3. Add a short experimental
-sampling sentence, rather than altering the corollary or its statistic.
-`--sampling without-replacement` applies the matching finite-population factor
-`(N-B)/(N-1)` automatically. Ordinary quadratic/logistic experiments keep their
-historical sampling without replacement within each batch.
+The author prioritizes retaining Figure 12's published coverage pattern. Git
+history supplies a protocol that predates the fixed-ones/n=1000 revision:
+commit `ddcb561` records n=500, n0=200 and one random projection per trajectory;
+`7ba5f07` adds the covariance correction for within-batch sampling without
+replacement. The fixed-ones direction and n=1000, n0=500 were introduced later
+in `ef465cc`. They are not an established protocol for the supplied PDF image.
+The original notebook and raw values are unavailable. Historical comments that
+refer to a notebook are evidence of the repository's history, not independent
+access to that notebook.
 
-Figure 8 uses the full-data covariance at the simulation minimizer, as already
-stated in the manuscript. Figure 12 defaults to the actual Remark 8 estimator:
+Figure 12 now defaults to n=500, n0=200, sampling without replacement inside
+independent batches, and a unit-normalized vector with iid Uniform(0,1) entries
+from `RandomState(seed+12345)` for each trajectory. That direction is shared
+across every learning rate and momentum weight in the trajectory. The Hessian
+remains the author-requested `V_i.T@V_i+I`. Its reference covariance is
 
 ```
-S_hat = mean_{t,i in batch_t} (A_i x_t-b_i)(A_i x_t-b_i)^T
-H_hat = mean_{t,i in batch_t} A_i
-V_hat = H_tilde^{-1} S_hat H_tilde^{-1} / B
+V_B = (N-B)/(B*(N-1)) * H^{-1} S_star H^{-1}
+S_star = mean_i (A_i x_star-b_i)(A_i x_star-b_i)^T
 ```
 
-Hessian eigenvalues are floored at `lambda_lower/2`. The construction bound
-`lambda_lower = 1` is known from the generated Hessians; it does not use
-the empirical minimum eigenvalue or the oracle minimizer. The full matrix
-estimator is available as `online_covariance`. For a multi-configuration sweep,
-`online_projected_variances` calculates the exact projection of that estimator
-by postprocessing stored trajectories and their sampled indices. It is not an
-implementation of a streaming memory-saving algorithm, although it gives the
-same estimator without substituting oracle gradients. A regression test compares
-it against direct accumulation of the full sampled-gradient matrix.
+This is an oracle covariance at the known simulation minimizer, not the online
+estimator of Remark 8. Retaining the published figure's qualitative results
+therefore requires a short correction of its n/n0, covariance and projection
+sentences, including the reference on manuscript page 16. The theoretical
+estimator and its analysis in Remark 8 remain intact. Historical reconstruction
+with a simplified Hessian must not be described as exact recovery of the missing
+raw values or proof that the original image used the same protocol.
 
-`--covariance oracle` remains available for diagnostics. Non-finite statistics
-count as non-coverage and remain in the replication denominator. The NPZ records
-raw statistics, their finite masks, sampling, covariance method, retained-point
-settings, and the projection vector.
+Figure 8 keeps n=2000, n0=1000, full-data reference covariance and sampling with
+replacement. `--sampling` explicitly overrides sampling for both figures;
+otherwise the NPZ records their different default sampling methods separately.
+Non-finite statistics count as non-coverage and remain in the denominator.
+The NPZ records every trajectory's direction, raw Z values and retained horizon.
 
-Figure 12 retains the historical direction `ones/sqrt(d)` by default.
-`--projection random` is a diagnostic: a fixed seed-1 uniform vector normalized
-once after generating the fixed data. It is not a recovered setting for the PDF.
-Do not choose a direction or estimator after looking at its agreement with the
-old image. The baseline script itself differs visibly from the PDF's Figure 12;
-a new figure must be identified by its recorded protocol, rather than called an
-exact reproduction of that image. A single finite-horizon coverage curve assesses
-normal calibration, rather than proving convergence in distribution.
+The actual Remark 8 implementation remains available through `--covariance
+online`: sampled pre-update gradients estimate S_hat, sampled Hessians estimate
+H_hat, eigenvalues are floored at `lambda_lower/2` (lambda_lower=1), and
+`V_hat=H_tilde^{-1} S_hat H_tilde^{-1}/B` with the matching sampling correction.
+`online_projected_variances` postprocesses stored trajectories and sampled indices
+and agrees with direct full-matrix accumulation. It is not a streaming memory
+implementation. The previous online/iid/fixed-ones diagnostic is explicit:
+
+```bash
+python src/clt/clt_experiment.py --n_cov 1000 --n0_cov 500 \
+    --covariance online --sampling with-replacement --projection ones
+```
+
+The restored protocol has been checked at N=20,000, d=10, B=4,000 over
+1000 trajectory seeds. At alpha=2^-8, coverage is 0.141/0.146/0.154; at
+2^-7 it is 0.789/0.841/0.903 for SGD/SGDM-0.8/SGDM-0.9. The plateau is
+approximately 0.96-0.97 and the first zero-coverage grid values on the right
+are 2^-3, 2^0 and 2^1. This recovers the published pattern, with remaining
+pointwise differences. Figure 8 was not rerun at 1000 trials in this revision.
+
+The direction and horizon are recovered from Git history rather than searched
+for their fit to the PDF. An exact-source match is unresolved without the missing
+original notebook/raw data. One finite-horizon coverage curve assesses normal
+calibration rather than proving convergence in distribution.
 
 ## Simplified Section 5.2 setting
 
@@ -100,13 +120,16 @@ Across data seeds 0–199, the mean condition number is 14.70561. A 20-seed
 paired check at N=20,000, d=10, B=4,000 retained the same finite-horizon
 stable grid limits (1/16, 1/2, 1 for gamma=0, 0.8, 0.9). A separate ten-trajectory
 online-covariance pilot ran both Hessians on identical with-replacement batches;
-the formal 1000-trajectory Figure-12 experiment has not been rerun.
+these are historical diagnostics of the earlier online/iid setting, separate
+from the restored oracle Figure-12 protocol.
 
 ## Manuscript changes still needed
 
 To describe the simplified Section 5.2 experiments, use uniform entries, `A_i=V_i.T@V_i+I`, uniform positive
 `b_i`, and condition number approximately 14.7. Section 5.1 and equation (4) can
-remain as written.
+remain as written. For Figure 12, correct n to 500, n0 to 200,
+specify the full-data covariance with finite-population correction and per-trial
+random projection, and remove the assertion that this plot validates Remark 8.
 
 Keep the MNIST training and cumulative loss curves. Correct the model formula to
 the actual 784–500–10 network with trainable biases, and replace the claimed

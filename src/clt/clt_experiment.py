@@ -11,10 +11,14 @@ The statistic (Eq. (def:z))
 is asymptotically N(0, 1) by Corollary 3.
 
 Figure 8 : full-data reference normalization, n=2000, n0=1000.
-Figure 12: Remark 8 sampled-gradient covariance, n=1000, n0=500.
-Both default to independent sampling WITH replacement, as in Corollary 3.
---sampling without-replacement applies the finite-population correction.
---covariance oracle provides the full-data reference comparison for Figure 12.
+Figure 12: historical coverage protocol, n=500, n0=200, full-data reference
+covariance, without-replacement batches and one random direction per trajectory.
+The covariance includes the matching finite-population correction. This protocol
+is recorded in commit 7ba5f07, before the later fixed-ones/n=1000 revision;
+it restores the shape of the supplied panel, not its unavailable raw values.
+Figure 8 keeps independent sampling WITH replacement, as in Corollary 3.
+--covariance online retains the Remark 8 estimator as a separate experiment.
+--sampling explicitly overrides sampling for BOTH figures.
 
 Outputs (results/clt/):
     fig_clt_sgd.png, fig_clt_sgdm.png, fig_clt_alpha.png, clt_raw.npz
@@ -104,6 +108,16 @@ def coverage_trial(data, schedule, batch_size, alphas, gammas, n, n0,
     z[invalid] = np.nan
     return z.reshape(len(gammas), len(alphas))
 
+def trajectory_projection(d, seed):
+    """Historical Figure-12 direction, shared over all rates/momenta in a trial.
+
+    This is the seed+12345 rule used by clt_projection in commit 7ba5f07,
+    not a direction selected for agreement with a plotted curve.
+    """
+    phi = np.random.RandomState(seed + 12345).rand(d, 1)
+    return phi / np.linalg.norm(phi)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--N", type=int, default=20000, help="training-set size N")
@@ -114,18 +128,18 @@ def main():
     ap.add_argument("--n_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
     ap.add_argument("--gamma_hist", type=float, default=0.9)
-    ap.add_argument("--n_cov", type=int, default=1000)
-    ap.add_argument("--n0_cov", type=int, default=500)
+    ap.add_argument("--n_cov", type=int, default=500)
+    ap.add_argument("--n0_cov", type=int, default=200)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
     ap.add_argument("--exps", type=int, nargs="+", default=list(range(2, -12, -1)))
     ap.add_argument("--gammas", type=float, nargs="+", default=[0.8, 0.9])
     ap.add_argument("--sampling", choices=["with-replacement", "without-replacement"],
-                    default="with-replacement",
-                    help="independent batches; default matches Corollary 3")
-    ap.add_argument("--covariance", choices=["online", "oracle"], default="online",
-                    help="Figure 12 covariance: Remark 8 estimator or reference")
-    ap.add_argument("--projection", choices=["ones", "random"], default="ones",
-                    help="Figure 12: historical ones/sqrt(d), or a fixed seed-1 random direction")
+                    default=None,
+                    help="override both figures; defaults: Fig 8 with replacement, Fig 12 without")
+    ap.add_argument("--covariance", choices=["online", "oracle"], default="oracle",
+                    help="Figure 12 covariance: full-data reference (default) or Remark 8")
+    ap.add_argument("--projection", choices=["per-trial", "ones", "random"], default="per-trial",
+                    help="Figure 12: historical per-trial random direction (default), or fixed direction")
     ap.add_argument("--out", type=str,
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "clt"))
@@ -137,7 +151,10 @@ def main():
 
     if not (0 <= args.n0_hist < args.n_hist and 0 <= args.n0_cov < args.n_cov):
         ap.error("Require 0 <= burn-in < trajectory length")
-    replace = args.sampling == "with-replacement"
+    sampling_hist = args.sampling or "with-replacement"
+    sampling_cov = args.sampling or "without-replacement"
+    replace_hist = sampling_hist == "with-replacement"
+    replace_cov = sampling_cov == "with-replacement"
     rng = np.random.RandomState(1)
     data = build_quadratic_data(*draw_quadratic_problem(N, d, rng))
     Ai, bi, A = data["Ai"], data["bi"], data["A"]
@@ -146,7 +163,7 @@ def main():
     phi /= np.linalg.norm(phi)
     alpha_hist = 0.001
     cov = asymptotic_covariance(
-        Ai, bi, x_star, A, batch_size, replace=replace)
+        Ai, bi, x_star, A, batch_size, replace=replace_hist)
 
     z_sgd = np.zeros(args.num_seed)
     z_sgdm = np.zeros(args.num_seed)
@@ -154,7 +171,7 @@ def main():
         if seed % 100 == 0:
             print(f"[clt-hist] seed {seed}/{args.num_seed}", flush=True)
         schedule = make_batch_schedule(N, batch_size, args.n_hist, seed,
-                                       replace=replace)
+                                       replace=replace_hist)
         # averaged SGD and averaged SGDM replay the same batches
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule,
                                                args.n_hist)
@@ -177,21 +194,26 @@ def main():
     rng2 = np.random.RandomState(1)
     data2 = build_quadratic_data(
         *draw_quadratic_problem(N, d, rng2), shift=1.0)
-    phi_cov = (rng2.rand(d, 1) if args.projection == "random"
-               else np.ones((d, 1)))
-    phi_cov /= np.linalg.norm(phi_cov)
-    data2["phi"] = phi_cov
+    phi_cov = None
+    if args.projection != "per-trial":
+        phi_cov = (rng2.rand(d, 1) if args.projection == "random"
+                   else np.ones((d, 1)))
+        phi_cov /= np.linalg.norm(phi_cov)
+    phi_cov_by_trial = np.empty((args.num_seed_cov, d, 1))
     alphas = [2.0 ** e for e in args.exps]
     gamma_all = [0.0] + list(args.gammas)
     z_cov = np.full((args.num_seed_cov, len(gamma_all), len(alphas)), np.nan)
     for seed in range(args.num_seed_cov):
         if seed % 20 == 0:
             print(f"[clt-cov] seed {seed}/{args.num_seed_cov}", flush=True)
+        direction = trajectory_projection(d, seed) if phi_cov is None else phi_cov
+        data2["phi"] = direction
+        phi_cov_by_trial[seed] = direction
         schedule = make_batch_schedule(
-            N, batch_size, args.n_cov, seed, replace=replace)
+            N, batch_size, args.n_cov, seed, replace=replace_cov)
         z_cov[seed] = coverage_trial(
             data2, schedule, batch_size, alphas, gamma_all,
-            args.n_cov, args.n0_cov, args.covariance, replace)
+            args.n_cov, args.n0_cov, args.covariance, replace_cov)
     covered = np.isfinite(z_cov) & (np.abs(z_cov) <= 1.96)
     cover_sgd = covered[:, 0, :].astype(float)
     cover_sgdm = covered[:, 1:, :].astype(float)
@@ -225,11 +247,16 @@ def main():
                         exps=np.array(args.exps), gammas=np.array(args.gammas), z_cov=z_cov,
                         valid_cov=np.isfinite(z_cov), n_hist=args.n_hist,
                         n0_hist=args.n0_hist, n_cov=args.n_cov, n0_cov=args.n0_cov,
-                        sampling=args.sampling, covariance=args.covariance,
-                        projection=args.projection, phi_cov=phi_cov,
+                        sampling=args.sampling or "per-figure",
+                        sampling_hist=sampling_hist, sampling_cov=sampling_cov,
+                        covariance=args.covariance, projection=args.projection,
+                        phi_cov=phi_cov_by_trial if phi_cov is None else phi_cov,
+                        phi_cov_by_trial=phi_cov_by_trial,
+                        projection_seed_offset=12345,
                         phi_hist=phi, N=N, d=d, batch_size=batch_size,
                         alpha_hist=alpha_hist, gamma_hist=args.gamma_hist,
-                        data_seed=1, lambda_lower=1.0, hessian_cov="V.T@V+I")
+                        data_seed=1, lambda_lower=1.0, hessian_cov="V.T@V+I",
+                        protocol_source="7ba5f07 (Hessian simplified to +I)")
     print(f"[clt] results saved to {os.path.abspath(args.out)}")
 
 

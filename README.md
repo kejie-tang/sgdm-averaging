@@ -8,7 +8,8 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 
 **Paper-alignment revision.** The quadratic sign and factorization, averaging
 endpoints, and logistic label direction now follow the manuscript. Figure 12
-has an actual Remark 8 sampled-gradient covariance implementation. See
+restores a Git-recorded coverage protocol; the actual Remark 8 sampled-gradient
+covariance implementation remains optional. See
 [docs/paper_alignment.md](docs/paper_alignment.md) for what changed and the
 limits of comparisons against the historical PDF.
 
@@ -139,16 +140,27 @@ python src/decaying/decaying_experiment.py --num_seed 200
 ~~~bash
 python src/clt/clt_experiment.py
 ~~~
-Figure 8 uses the full-data reference covariance, n=2000, n0=1000.
-Figure 12 uses the Remark 8 estimator from sampled, pre-update gradients,
-n=1000, n0=500. Both default to independent sampling with replacement,
-consistent with Corollary 3. Use --sampling without-replacement to apply
-the corresponding finite-population correction, and --covariance oracle for
-a Figure-12 reference comparison. The historical direction ones/sqrt(d) is
-retained for Figure 12; --projection random is a diagnostic using a fixed
-seed-1 direction, not a reconstruction of an unrecorded PDF setting.
-Failed/non-finite statistics remain in the
-replication denominator and are counted as non-coverage.
+Figure 8 uses the full-data reference covariance, n=2000, n0=1000 and
+independent sampling with replacement.
+Figure 12 restores the protocol recorded in Git commit 7ba5f07: n=500,
+n0=200, full-data reference covariance with the finite-population correction,
+independent batches sampled without replacement, and one random direction per
+trajectory (seed+12345), shared across learning rates and methods. The Hessian
+is the simplified V_i^T V_i+I. This retains the published panel's shape;
+the original notebook/raw values are unavailable, so exact numerical identity
+with the embedded PDF image is not claimed. The manuscript must correct its
+n/n0 and covariance description; the panel does not evaluate Remark 8.
+
+`--covariance online` retains the actual Remark 8 estimator as an optional
+experiment. `--projection ones` and `--projection random` select fixed directions;
+`--sampling` explicitly overrides both figures' sampling. To repeat the earlier
+online/iid/fixed-ones diagnostic, use:
+```bash
+python src/clt/clt_experiment.py --n_cov 1000 --n0_cov 500 \
+    --covariance online --sampling with-replacement --projection ones
+```
+Failed/non-finite statistics remain in the replication denominator and are
+counted as non-coverage.
 
 **Figures 9-11** — sensitivity of SGD / SGDM to the learning rate. We use
 iid Uniform(0,1) entries, A_i=V_i^T V_i+I and condition number about 14.7;
@@ -234,7 +246,7 @@ python src/mnist/mnist_experiment.py --download
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
 | 10 | `src/sensitivity/sensitivity_experiment.py` | γ = {0.8, 0.9}, T = 500, α = 2⁻¹¹ … 2² |
 | 11 | `src/sensitivity/sensitivity_experiment.py` | averaged, γ = 0.8, n₀ = 500 |
-| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 1000, n₀ = 500, 1000 trials, α = 2⁻¹¹ … 2² |
+| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 500, n₀ = 200, 1000 trials, per-trial projection, oracle + FPC |
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |
