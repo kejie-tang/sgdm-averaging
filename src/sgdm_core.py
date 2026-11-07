@@ -352,6 +352,82 @@ def asymptotic_covariance(Ai, bi, x_star, A, batch_size, replace=True, N=None):
     return A_inv @ Omega @ A_inv
 
 
+def thresholded_inverse(hessian, lambda_lower):
+    """Remark 8: floor Hessian eigenvalues at lambda_lower / 2."""
+    if lambda_lower <= 0:
+        raise ValueError("lambda_lower must be positive")
+    values, vectors = np.linalg.eigh((hessian + hessian.T) / 2)
+    return (vectors / np.maximum(values, lambda_lower / 2)) @ vectors.T
+
+
+def online_covariance(Ai, bi, traj, batch_size, schedule, lambda_lower=1.0):
+    """Remark 8 covariance from individual sampled, pre-update gradients.
+
+    H_hat and S_hat both use all n batches, including burn-in. Returns
+    H_tilde^{-1} S_hat H_tilde^{-1} / B for independent with-replacement
+    mini-batches. No simulation minimizer or full-data covariance is used.
+    """
+    n = len(traj)
+    if n < 1:
+        raise ValueError("Need at least one iterate")
+    H = np.zeros_like(Ai[0])
+    S = np.zeros_like(H)
+    for k, x in enumerate(traj):
+        idx = schedule[k * batch_size:(k + 1) * batch_size]
+        gradients = (Ai[idx] @ x - bi[idx])[..., 0]
+        H += Ai[idx].mean(axis=0)
+        S += gradients.T @ gradients / batch_size
+    H_inv = thresholded_inverse(H / n, lambda_lower)
+    return H_inv @ (S / n) @ H_inv / batch_size
+
+
+def online_projected_variances(Ai, bi, trajectories, batch_size, schedule,
+                               phi, lambda_lower=1.0, A_seq=None):
+    """Exact projections of the Remark 8 covariance for a parameter sweep.
+
+    trajectories has shape (config, n, d, 1), containing pre-update x_t.
+    H_hat is shared because all configurations replay the same sampled
+    batches. Projected individual-gradient second moments give exactly the
+    same sandwich estimator as online_covariance, without forming one full
+    S_hat per configuration. All n batches contribute, including burn-in.
+    Returns phi^T H_tilde^{-1} S_hat H_tilde^{-1} phi / B. Independent
+    with-replacement sampling needs no finite-population correction.
+    """
+    trajectories = np.asarray(trajectories)
+    if trajectories.ndim != 4 or trajectories.shape[-1] != 1:
+        raise ValueError("Expected (config, n, d, 1) trajectories")
+    count, n, d, _ = trajectories.shape
+    if n < 1:
+        raise ValueError("Need at least one iterate")
+    if A_seq is None:
+        H = np.zeros_like(Ai[0])
+        for k in range(n):
+            idx = schedule[k * batch_size:(k + 1) * batch_size]
+            H += Ai[idx].mean(axis=0) / n
+    else:
+        H = A_seq[:n].mean(axis=0)
+    direction = (thresholded_inverse(H, lambda_lower) @ phi.reshape(d, 1))[:, 0]
+    valid = np.isfinite(trajectories).all(axis=(1, 2, 3))
+    result = np.full(count, np.nan)
+    if not valid.any():
+        return result
+    good = trajectories[valid, :, :, 0]
+    totals = np.zeros(len(good))
+    with np.errstate(over="ignore", invalid="ignore"):
+        for k in range(n):
+            idx = schedule[k * batch_size:(k + 1) * batch_size]
+            coefficients = np.empty((batch_size, d + 1))
+            coefficients[:, :d] = Ai[idx] @ direction
+            coefficients[:, d] = -(bi[idx, :, 0] @ direction)
+            moment = coefficients.T @ coefficients / batch_size
+            values = np.column_stack((good[:, k], np.ones(len(good))))
+            totals += np.einsum("ci,ij,cj->c", values, moment, values)
+        variances = totals / (n * batch_size)
+    variances[~np.isfinite(variances) | (variances <= 0)] = np.nan
+    result[valid] = variances
+    return result
+
+
 def clt_projection(Ai, bi, x_star, initial, batch_size, schedule, alpha, n, n0,
                    cov, gamma=0.0, phi=None, seed=0, A_seq=None, b_seq=None):
     """One replication of the projected CLT statistic Z (Eq. (def:z)).

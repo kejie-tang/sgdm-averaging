@@ -21,7 +21,8 @@ from sgdm_core import (  # noqa: E402
     adaptive_gamma, asymptotic_covariance, averaged_errors,
     decaying_schedule, make_batch_schedule, run_sgd,
     run_sgdm, build_quadratic_data,
-    generate_logistic_data,
+    generate_logistic_data, online_covariance, online_projected_variances,
+    thresholded_inverse,
 )
 
 
@@ -109,6 +110,61 @@ def test_fpc_factor_and_full_batch_limit():
     # sampling the whole population carries no noise
     c_full = asymptotic_covariance(Ai, bi, xs, A, n, replace=False)
     assert np.allclose(c_full, 0.0)
+
+
+def test_remark8_uses_individual_gradients_at_each_iterate():
+    """Individual-gradient moments differ from batch-mean or final-point moments."""
+    Ai = np.ones((2, 1, 1))
+    bi = np.array([[[1.]], [[-1.]]])
+    trajectory = np.array([[[2.]], [[0.]]])
+    schedule = np.array([0, 1, 0, 1])
+    # S_hat = ((1^2+3^2)+((-1)^2+1^2))/4 = 3, H_hat=1, B=2.
+    got = online_covariance(Ai, bi, trajectory, 2, schedule)
+    assert np.allclose(got, [[1.5]])
+    assert np.allclose(thresholded_inverse(np.array([[.1]]), 1.), [[2.]])
+
+
+def test_remark8_projection_matches_full_sandwich_with_duplicate_draws():
+    """The projected calculation preserves the full sampled sandwich estimator."""
+    rng = np.random.RandomState(14)
+    v = rng.randn(9, 3, 3)
+    Ai = v.transpose(0, 2, 1) @ v + np.eye(3)
+    bi = rng.randn(9, 3, 1)
+    schedule = np.array([0, 0, 2, 4, 3, 3, 5, 6, 7, 8, 1, 1])
+    trajectories = rng.randn(2, 4, 3, 1)
+    phi = rng.randn(3, 1)
+    expected = [float((phi.T @ online_covariance(
+        Ai, bi, t, 3, schedule) @ phi).item()) for t in trajectories]
+    bad = np.full((1, 4, 3, 1), np.nan)
+    got = online_projected_variances(
+        Ai, bi, np.concatenate((trajectories, bad)), 3, schedule, phi)
+    assert np.allclose(got[:2], expected, rtol=1e-12, atol=1e-12)
+    assert np.isnan(got[2])
+
+
+def test_coverage_statistic_uses_sampled_covariance_and_paper_average():
+    """Check the complete statistic, including the B scaling and burn-in index."""
+    import importlib.util
+    path = os.path.join(ROOT, "src", "clt", "clt_experiment.py")
+    spec = importlib.util.spec_from_file_location("coverage_test_module", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rng = np.random.RandomState(13)
+    v = rng.rand(20, 3, 3)
+    data = build_quadratic_data(v, rng.rand(20, 3, 1), rng.rand(3, 1), shift=1.)
+    data["phi"] = np.array([[1.], [0.], [0.]])
+    n, n0, B = 12, 4, 5
+    schedule = make_batch_schedule(20, B, n, 17, replace=True)
+    # A Figure-12 trial must not call the full-data reference covariance.
+    module.asymptotic_covariance = lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("oracle covariance used in coverage trial"))
+    got = module.coverage_trial(data, schedule, B, [.01], [.8], n, n0)
+    traj = run_sgdm(data["Ai"], data["bi"], data["x_star"], data["initial"],
+                    B, schedule, .01, .8, n)
+    covariance = online_covariance(data["Ai"], data["bi"], traj, B, schedule)
+    numerator = np.sqrt(n-n0)*(data["phi"].T @ (traj[n0:].mean(0)-data["x_star"])).item()
+    expected = numerator/np.sqrt((data["phi"].T @ covariance @ data["phi"]).item())
+    assert np.allclose(got, [[expected]], rtol=1e-12, atol=1e-12)
 
 
 # --------------------------------------------------------------------------- #

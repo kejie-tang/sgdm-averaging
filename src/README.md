@@ -47,9 +47,11 @@ and linear-term means for reuse across the quadratic parameter sweeps.
 
 The CLT experiments use a fixed dataset and independent trajectory seeds.
 Figure 8 samples with replacement and uses one fixed random projection.
-Figure 12 samples each batch without replacement and uses one random
-projection per trajectory, shared across methods and learning rates. Both use
-the full-data reference covariance at x_star; Figure 12 includes (N-B)/(N-1).
+Figure 8 uses the full-data reference covariance at x_star. Figure 12 samples
+with replacement and uses a fixed projection shared across all trials, methods
+and learning rates. Its covariance is the Remark 8 plug-in estimator based on
+individual sampled gradients at each pre-update x_t, including burn-in.
+The construction A_i=V_i^T V_i+I provides the thresholding bound lambda_Sigma=1.
 
 Each script saves its figures and raw arrays under `results/<experiment>/`.
 The main [README](../README.md) lists the parameters for each figure.
