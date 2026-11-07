@@ -108,10 +108,6 @@ def main():
     ave_len = args.ave_len
     n = max(args.n0_list) + ave_len + 1
 
-    # gamma_set: SGD (0), the fixed weights of panel (a), the adaptive weight
-    # of the paper (None is replaced per replication), then panel (b)'s 0.8
-    # and 0.9.  The ordering is the authors' and fixes the column layout of
-    # err_last / err_ave.
     gamma_set = [0.0, 0.3, 0.5, 0.7, None, 0.8, 0.9]
     n_gammas = len(gamma_set)
 
@@ -178,11 +174,6 @@ def main():
     labels = ["SGD", "SGDM-0.3", "SGDM-0.5", "SGDM-0.7", "SGDM-adap",
               "SGDM-0.8", "SGDM-0.9"]
 
-    # (colour, marker, linestyle) per curve, copied from the authors' plotting
-    # cells.  Their ``markers`` list is ["o", "v", "s", "p", "P", "*", "+", "x"]
-    # and their ``linestyles`` list is ['-.', '--', ':', '-.', '-']; the curves
-    # that are not given an explicit colour pick up the default property cycle
-    # in plotting order, i.e. C0/C1/C2/C3 for the first four such curves.
     SMALL_STYLE = [("#9467bd", "o", ":"),    # SGD        colors[4], ':.'
                    ("#1f77b4", "s", "--"),   # SGDM-0.3   C0, markers[2], ls[1]
                    ("#ff7f0e", "p", ":"),    # SGDM-0.5   C1, markers[3], ls[2]
@@ -195,11 +186,6 @@ def main():
     def plot_single(fname, curve, idxs, styles, ylab, ylim, start=0):
         """curve: (num_seed, T, n_gammas); idxs: column indices, in legend order."""
         fig = plt.figure(figsize=(4, 4), dpi=150)
-        # The geometry of the authors' plotting cells.  It matters visually:
-        # a float ``markevery`` places markers every ``markevery``-th fraction
-        # of the *axes bounding-box diagonal* measured **along the curve**, so
-        # the marker positions depend on the axes aspect and on the data, and
-        # reproduce the published panels only with this exact geometry.
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
         for j, (color, marker, ls) in zip(idxs, styles):
@@ -215,10 +201,6 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    # labels indices: 0=SGD,1=0.3,2=0.5,3=0.7,4=adap,5=0.8,6=0.9
-    # Panel (a) "small gamma": SGD, SGDM-0.3/0.5/0.7, SGDM-adap.
-    # Panel (b) "large gamma": SGDM-adap, SGDM-0.8, SGDM-0.9 -- the published
-    # panels (EC.1(b), EC.2(b), EC.3(b)) contain no SGD reference curve.
     idx_small = [0, 1, 2, 3, 4]
     idx_large = [4, 5, 6]
 

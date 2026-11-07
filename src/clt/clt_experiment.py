@@ -50,19 +50,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.gridspec as gridspec  # noqa: E402
 
 MARKERS = ["o", "v", "s", "p", "P", "*", "+", "x"]
-# The published Figure 12 draws SGD dash-dot, SGDM-0.8 solid and SGDM-0.9
-# dashed (the authors' plotting cell: ``linestyles = ['-.', '-', '--']``).
 LINESTYLES = ["-.", "-", "--", ":"]
 
 
 def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
-    # The authors' canvas: 4 x 4 in with the axes box at 0.1/0.9 by 0.2/0.9.
-    # The published panels carry no axis labels, only the tick values.
     fig = plt.figure(figsize=(4, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
-    # The published panels draw the N(0,1) reference first, so that it heads
-    # the legend.
     x = np.linspace(-5, 5, 200)
     ax.plot(x, np.exp(-x ** 2 / 2) / np.sqrt(2 * np.pi), "k", lw=2,
             label="N(0,1)")
@@ -76,7 +70,7 @@ def hist_figure(z, gamma_label, fname, out_dir, color="#1f77b4"):
 
 
 def coverage_figure(exps, gammas, cover_sgd, cover_sgdm, out_dir):
-    """Figure 12 with the manuscript's line styles and nominal 95% level."""
+    """Figure 12 coverage with the nominal 95% reference level."""
     fig = plt.figure(figsize=(5, 4), dpi=150)
     ax = fig.add_subplot(gridspec.GridSpec(
         1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])
@@ -91,8 +85,6 @@ def coverage_figure(exps, gammas, cover_sgd, cover_sgdm, out_dir):
     ax.set_ylabel(r"$P(|Z|<1.96)$")
     ax.set_xticks(list(range(-11, 3)))
     ax.set_xlim([-11.3, 2.8])
-    # The authors' tick list carries an extra 0.95 (the nominal level), which
-    # is also what makes matplotlib label the axis with two decimals.
     ax.set_yticks([i * 0.2 for i in range(6)] + [0.95])
     ax.set_ylim([-0.01, 1.05])
     ax.legend(fontsize=8, loc="lower center")

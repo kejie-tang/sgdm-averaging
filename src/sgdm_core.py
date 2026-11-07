@@ -296,7 +296,10 @@ def run_sgdm(Ai, bi, x_star, initial, batch_size, schedule, alpha, gamma, n,
 
 
 def decaying_schedule(n0, n, alpha0):
-    """The paper's alpha_t = alpha0 / sqrt(max(n0, t)), t=1,...,n."""
+    """coefficient/sqrt(max(n0,t)), with coefficient=alpha0.
+
+    The initial plateau is alpha0/sqrt(n0), for t=1,...,n.
+    """
     if n0 < 1:
         raise ValueError("n0 must be positive for the decaying schedule")
     t = np.arange(1, n + 1, dtype=float)

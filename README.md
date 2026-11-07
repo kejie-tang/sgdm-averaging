@@ -18,7 +18,7 @@ Repository (anonymous mirror for review): <https://anonymous.4open.science/r/sgd
 ├── tests/             regression tests for the conventions below
 ├── scripts/           run_all.sh — reproduce all; make_tarball.sh — pack
 ├── data/              public datasets + the archived Figure-16 logs
-└── docs/              submission statements + notes on conventions
+└── docs/              momentum implementation
 ```
 
 Running the scripts creates `results/<exp>/`, with the figure for each paper
@@ -78,9 +78,8 @@ arrays the panels are computed from. Each script's docstring lists the files it
 writes and section 5 maps them to the figures.
 
 `bash scripts/make_tarball.sh` then packs the whole release —
-those figures, the archived Figure-16 logs and the sources — into one archive
-for submission, leaving the downloaded MNIST / CIFAR-10 copies out. Use `RAW=0`
-for a figure-only archive (~4 MB) if the submission system caps attachments.
+those figures, the archived Figure-16 logs and the sources — into one archive,
+leaving downloaded datasets out. Use `RAW=0` to exclude generated raw arrays.
 
 **Figure 1** — colour maps of the spectral radius λ of the SGDM recursion.
 Panel (a) is the spectral radius itself; panel (b) highlights, in yellow, the
@@ -119,10 +118,10 @@ Aᵢ = ρ VᵢᵀVᵢ + 10 I_d and prints the mean values rounded to one decimal
 python src/diff_lmu/diff_lmu_experiment.py --num_seed 200
 ```
 
-**Figure 7** — SGD / SGDM and averaging with the paper's schedule
-alpha_t=alpha0/sqrt(max(n0,t)). By default alpha0=0.001*sqrt(n0), giving
-an initial plateau rate of 0.001. --alpha0 sets the coefficient directly;
---initial_lr sets the plateau used when --alpha0 is omitted.
+**Figure 7** — SGD / SGDM and averaging with
+α_t = α₀ sqrt(n₀/max(n₀,t)), α₀ = 0.001. `--initial_lr` sets α₀.
+The optional `--alpha0` argument sets the coefficient α₀ sqrt(n₀) in the
+equivalent form coefficient/sqrt(max(n₀,t)).
 ~~~bash
 python src/decaying/decaying_experiment.py --num_seed 200
 ~~~
@@ -181,7 +180,7 @@ VGG-11 three-layer classifier head (4096 → 4096 → 10 with dropout), sized fo
 1×1 feature map because CIFAR-10 images are 32×32.
 
 Two modes. The published panel comes from the per-iteration training losses
-recorded by the authors' runs, shipped under `data/cifar_logs/` (4 momentum
+recorded in the archived logs under `data/cifar_logs/` (4 momentum
 weights × 3 seeds × 19,550 iterations), which is what `--mode plot` draws.
 `--mode train` re-trains the network from scratch instead.
 ```bash
@@ -204,10 +203,6 @@ shows SGDM-adap, SGDM-0.8 and SGDM-0.9 — the (b) panels carry no SGD curve.
 Each panel retains 99 points: EC.1 uses indices 0,...,98; EC.2–EC.3
 use t=1,...,99 to match the average definition. The axis limits are EC.1:
 3.3e-4 … 1.42, EC.2: 1e-4 … 2e-1, EC.3: 8e-5 … 4e-2.
-
-The panels use the authors' plotting geometry — `figsize=(4, 4)`,
-`left=0.1, right=0.9, top=0.9, bottom=0.2`, `markevery=0.3` — which is what
-fixes the marker positions.
 
 **Figure EC.4** — MNIST with multinomial logistic regression (electronic
 companion, Section EC.7.2). B = 256, α = 1.0, γ ∈ {0.1, …, 0.99}. The published
@@ -281,14 +276,11 @@ iterates.
 
 * **Update.** `m_{t+1} = γ m_t + (1-γ) g_t`, `x_{t+1} = x_t - α m_{t+1}`; SGD is the
   `γ = 0` case. In PyTorch this is `SGD(lr = α(1-γ), momentum = γ)` throughout,
-  including Figure 16: `torch.optim.SGD` scales its momentum buffer by `lr`, so
-  the unscaled `lr = α` would make the effective step `α/(1-γ)` (10× too large
-  at γ = 0.9). `docs/momentum_convention.md` derives the correspondence and
-  `docs/verify_momentum_equivalence.py` checks it numerically (agreement to
-  1e-16 with the scaled rate).
+  including Figures 13–16 and EC.4. See `docs/momentum_convention.md`
+  for the relation between the PyTorch buffer and m.
 * **First step.** The logistic experiment (Figures EC.1-EC.3) starts the
-  momentum from the raw mini-batch gradient, `m₂ = g₁`, rather than from
-  `(1-γ) g₁`. Every other experiment uses the plain recursion above with
+  momentum from the raw mini-batch gradient, `m₂ = g₁`. Other experiments
+  use the recursion above with
   `m₁ = 0`, i.e. `m₂ = (1-γ) g₁`.
 * **Adaptive weight.** `γ = ((1 - μα)/(1 + μα))²`, with μ the smallest
   eigenvalue of the population Hessian.
@@ -307,8 +299,6 @@ iterates.
   (before `n₀` it is the ordinary mini-batch loss).
 * **One stream per replication.** Each replication is driven by a single
   unbroken `numpy` stream, seeded with the replication index; the problem data
-  and the mini-batch index sequence are both drawn from it, in the authors'
-  order, and SGD and SGDM share that one sequence. `src/README.md` explains why
-  the order matters, and how a sweep over α or γ reuses one pass of mini-batch
-  gradients (`sgdm_core.batch_gradient_sequence`) — numerically identical to
-  recomputing them, only faster.
+  followed by the mini-batch index sequence. SGD and SGDM share those
+  batches. Quadratic sweeps reuse the batch Hessian and linear-term means
+  computed by `sgdm_core.batch_gradient_sequence` (see `src/README.md`).

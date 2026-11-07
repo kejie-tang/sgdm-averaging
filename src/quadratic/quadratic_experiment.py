@@ -23,8 +23,7 @@ Figure 4  SGD, SGDM (gamma = 0.96) and their averaged versions, with
           (a) n0 = 250 and (b) n0 = 500.
 
 Every curve is the mean over the replications of the *squared* error,
-``mean_seed ||x - x^*||^2``, which is the quantity the authors' plotting
-helpers compute (``np.mean(arr ** 2, axis=0)``).
+``mean_seed ||x - x^*||^2`` (``np.mean(arr ** 2, axis=0)``).
 
 Outputs (written to results/quadratic/):
     fig_linear_{small,large}.png            -> Figure 2(a),(b)
@@ -63,12 +62,6 @@ COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 FIG3_N0 = 500
 GAMMA_FIG4 = 0.96
 
-# The canvas of the published panels: 4 x 4 inches with the axes box spanning
-# left=0.1 ... right=0.9 and bottom=0.2 ... top=0.9, i.e. a 3.2 x 2.8 inch box
-# -- the geometry the authors' plotting cells use.  The figures are then saved
-# with ``bbox_inches="tight"``, as the published panels were: measured on the
-# paper, the axes box occupies about 0.79 of the image width and 0.82 of its
-# height, which a raw 4x4 canvas (0.80 / 0.70) cannot produce.
 FIGSIZE = (4, 4)
 GRIDSPEC = dict(left=0.1, right=0.9, top=0.9, bottom=0.2)
 
@@ -100,9 +93,6 @@ def main():
     for n0 in n0_list:
         if n0 >= n:
             raise ValueError(f"n0={n0} must be smaller than n={n}.")
-    # The averaged curves run to the end of the trajectory, exactly as in the
-    # published panels: xbar_{n0+t} for t = 1, ..., n - n0 (the last
-    # iterate that can be averaged in is x_n).
     ave_len = {n0: n - n0 for n0 in n0_list}
 
     # The two fixed momentum weight sets of Figure 2, plus the adaptive
@@ -175,16 +165,6 @@ def main():
 
     print(f"[quadratic] mean adaptive gamma = {gamma_mean.mean():.4f}")
 
-    # ------------------------------------------------------------------ #
-    # Colours / markers / line styles are the ones used in the published
-    # panels (read off Figures 2-4), so that a regenerated figure is
-    # recognisable next to the paper's.  The canvas is the authors' as well:
-    # ``figsize=(4, 4)`` with the axes box spanning left=0.1 ... right=0.9
-    # and bottom=0.2 ... top=0.9, and ``markevery=0.3``.  The float
-    # ``markevery`` matters -- matplotlib spaces such markers by *arc length*
-    # along the curve, so the marker positions follow from the axes-box size
-    # (3.2 x 2.8 in) and are only reproducible with those parameters.
-    # ------------------------------------------------------------------ #
     STYLE = {
         "SGD":           dict(color="#9467bd", marker="o", linestyle=":"),
         "SGDM-adap":     dict(color="#d62728", marker="P", linestyle="-"),
@@ -199,13 +179,6 @@ def main():
         "Ave-SGDM-0.96": dict(color="#d62728", marker="v", linestyle="-"),
     }
 
-    # ------------------------------------------------------------------ #
-    # Figure 2: last-iterate ||x_t - x^*||.
-    #
-    # Legend order follows the published panels:
-    #   (a) small gamma : SGD, SGDM-0.5, SGDM-0.7, SGDM-0.9, SGDM-adap
-    #   (b) large gamma : SGDM-adap, SGDM-0.97, SGDM-0.98, SGDM-0.99
-    # ------------------------------------------------------------------ #
     def _legend_order(gammas_fixed):
         if gammas_fixed is gamma_fixed_large:
             return [("adap", True)] + [(g, False) for g in gammas_fixed]

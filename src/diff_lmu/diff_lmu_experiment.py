@@ -137,8 +137,6 @@ def main():
         spec = gridspec.GridSpec(1, 1, left=0.1, right=0.9, top=0.9,
                                  bottom=0.2, figure=fig)
         ax = fig.add_subplot(spec[0])
-        # The published panels list the last-iterate curves first and the
-        # averaged ones after, so the two loops are separate.
         for j, rho in enumerate(rho_list):
             cond = round(kappa_mean[j], 1 if args.kappa_labels == "rounded" else 2)
             ax.plot(np.arange(n), (err[:, :, j] ** 2).mean(axis=0),
@@ -160,7 +158,6 @@ def main():
         fig.savefig(os.path.join(args.out, fname), bbox_inches="tight")
         plt.close(fig)
 
-    # Panel (a) uses circles, panel (b) triangles, as in the published figure.
     _panel("fig_lmu_sgd.png", err_sgd, ave_sgd, "SGD", "Ave-SGD",
            ["#1f77b4", "#ff7f0e", "#2ca02c"], "o")
     _panel("fig_lmu_sgdm.png", err_sgdm, ave_sgdm, "SGDM-adap", "Ave-SGDM-adap",

@@ -17,13 +17,12 @@ in the paper, the momentum weight gamma and the learning rate alpha are realised
 with ``SGD(lr = alpha * (1 - gamma), momentum = gamma)`` (the optimiser scales
 its momentum step by ``lr``, so the product is ``alpha * m_t``).
 
-Reporting convention (important)
---------------------------------
-The curves are *not* moving averages with a window of one epoch.  Following the
-authors' plotting routine, the value reported at iteration t is the **running
-mean of the per-iteration training loss over iterations 1..t**, averaged over
-the three seeds.  For the averaged algorithms (Figures 14-15) the sequence fed
-to that running mean is the loss of the Polyak-averaged parameters
+Reported loss
+-------------
+The value at iteration t is the cumulative mean of per-iteration training
+losses over iterations 1..t, averaged over the three seeds. For the averaged
+algorithms (Figures 14-15), the sequence contains the losses of the
+Polyak-averaged parameters
 xbar_{n0+t} = (1/t) Sum_{j=n0+1}^{n0+t} x_j, and before n0 it is the ordinary
 mini-batch loss.  Figures 14 and 15 plot this sequence over t = n0, ..., 1000
 for n0 = 234 = floor(N/B) and n0 = 468 = 2 floor(N/B).
@@ -66,8 +65,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.gridspec as gridspec  # noqa: E402
 
-# Styling of the published panels (Figures 13-15), which is the same for the
-# last-iterate and the averaged panels.
 SMALL = dict(colors=['#1f77b4', '#2ca02c', '#d62728'],
              markers=['*', 'P', '*'], linestyles=['-', '--', '-'])
 LARGE = dict(colors=['#d62728', '#1f77b4', '#ff7f0e', '#2ca02c'],
@@ -86,8 +83,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
 
     Returns ``(last, ave)`` where ``last[t]`` is the mini-batch loss at
     iteration t and ``ave[n0][t]`` is the loss of the averaged parameters for
-    t >= n0 (and the ordinary mini-batch loss before that), matching the
-    authors' ``train_losses`` / ``train_losses_ave`` arrays.
+    t >= n0 and the ordinary mini-batch loss before n0.
     """
     import torch
     import torch.nn as nn
@@ -149,8 +145,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
         if max_iter is not None and t >= max_iter:
             break
 
-    # Before n0 the averaged curve is the ordinary mini-batch loss
-    # (the authors' "else" branch); from n0 on it is ave_tail.
+    # Retain ordinary losses before n0, followed by averaged-parameter losses.
     ave = {n0: np.asarray(list(last[:n0]) + ave_tail[n0], dtype=float)
            for n0 in n0_list}
     return np.asarray(last), ave

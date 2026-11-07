@@ -12,7 +12,7 @@ in-code** from the seeds and parameter values given in the paper. Nothing needs
 to be downloaded; the generators live in `src/sgdm_core.py`
 (`draw_quadratic_problem` / `build_quadratic_data`, `generate_logistic_data`).
 Each replication draws its data *and* its mini-batch index sequence from one
-unbroken random stream, in the order the authors' notebooks use.
+unbroken random stream, with data drawn before mini-batch indices.
 
 ## MNIST (Figures 13-15 and EC.4)
 

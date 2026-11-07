@@ -15,11 +15,7 @@ Reporting convention: the curve drawn at iteration t is the **running mean of
 the per-iteration mini-batch losses over iterations 1..t**, averaged over the
 seeds.
 
-The published panel stops at t = 1000 although the authors' run trains 20
-epochs (20 x 234 = 4680 mini-batches), so the curves are cut at ``--max_iter``
-(default 1000).  Cutting them matters for more than the axis range: the marker
-positions follow the *arc length* of the drawn path, so the markers land
-elsewhere if the tail is left in.
+The default plotted horizon is ``--max_iter 1000``.
 
 Panel layout:
     (a) "Small gamma": SGD, SGDM-0.1, SGDM-0.3, SGDM-0.5
@@ -35,7 +31,7 @@ torchvision.  Put the four raw files under ``data/MNIST/raw/``:
 (also accept the .gz versions).  If the directory does not exist and
 ``--download`` is passed, they are fetched from the public mirrors.
 
-Requires: torch only (see requirements.txt).
+Requires: numpy, matplotlib and torch (see requirements.txt).
 
 Outputs (results/mnist/):
     fig_mnist_small.png / fig_mnist_large.png  -> Figure EC.4(a),(b)
@@ -62,7 +58,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.gridspec as gridspec  # noqa: E402
 
-# Styling of the published panels (Figure EC.4).
 SMALL = dict(colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'],
              markers=['*', 'p', 'P', '*'], linestyles=['-', '-.', '--', '-'])
 LARGE = dict(colors=['#d62728', '#1f77b4', '#ff7f0e', '#2ca02c'],
@@ -186,11 +181,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch_size", type=int, default=256)
     ap.add_argument("--max_iter", type=int, default=1000,
-                    help="iterations that are plotted along t.  The authors' "
-                         "run trains 20 epochs (4680 mini-batches) but the "
-                         "published panel stops at t = 1000, so the curves are "
-                         "cut there; this also fixes the marker positions, "
-                         "which follow the arc length of the drawn path.")
+                    help="maximum number of plotted iterations")
     ap.add_argument("--data-root", type=str, default=None)
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--device", type=str, default=None)
@@ -228,8 +219,6 @@ def main():
         curves[gamma] = np.mean(ma_runs, axis=0)
 
     def plot(fname, gammas, ylim, include_sgd, style):
-        # The authors' canvas: 4 x 4 in, axes box at 0.1/0.9 by 0.2/0.9,
-        # markevery=0.3, saved with bbox_inches="tight".
         fig = plt.figure(figsize=(4, 4), dpi=150)
         ax = fig.add_subplot(gridspec.GridSpec(
             1, 1, left=0.1, right=0.9, top=0.9, bottom=0.2, figure=fig)[0])

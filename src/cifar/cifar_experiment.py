@@ -1,58 +1,23 @@
 """
-Figure 16: SGD and SGDM on CIFAR-10 with a VGG-11 network.
+Figure 16: SGD and SGDM on CIFAR-10 with VGG-11.
 
-Two modes:
+Setting: N=50,000, B=128, alpha=0.5, gamma in {0, 0.7, 0.9, 0.99},
+50 epochs (19,550 iterations), three seeds. The model has no batch
+normalization and a 512 -> 4096 -> 4096 -> 10 classifier with dropout.
+Training uses SGD(lr=alpha*(1-gamma), momentum=gamma) and cross-entropy loss.
 
-``--mode plot`` (default)
-    Draws the published panel from ``data/cifar_logs/``: the per-iteration
-    training losses recorded by the authors' own runs, three seeds per momentum
-    weight, 19,550 iterations each (50 epochs x 391 mini-batches of size 128).
+--mode plot (default) reads the archived Figure 16 training losses from
+data/cifar_logs/ and requires NumPy and Matplotlib. --mode train uses a
+reconstructed trainer and requires PyTorch and the CIFAR-10 data.
 
-``--mode train``
-    Re-runs the experiment from scratch with the released trainer
-    (``src/cifar/vgg.py``, VGG-11 without batch normalisation).  Needs PyTorch
-    and the CIFAR-10 data (``--download``).
+For t >= 1, the plotted value is the cumulative mean over losses[0:t],
+averaged across seeds; at t=0 it is the first loss. Non-finite losses are
+replaced by 1000 before averaging, and the final curve is clipped to [-10,100].
 
-Setting
--------
-CIFAR-10 (Krizhevsky et al. 2009): N = 50,000 training images of size 32x32
-with three colour channels, 10 classes.  The loss is f_i(X) = H(VGG(X), b_i),
-the multi-class cross-entropy.  Learning rate alpha = 0.5 and momentum weights
-gamma in {0.0 (SGD), 0.7, 0.9, 0.99}.  The step is
-``SGD(lr = alpha*(1 - gamma), momentum = gamma)``: ``torch.optim.SGD`` scales
-its momentum buffer by ``lr``, so that pair realises the paper's recursion
-``m = gamma*m + (1-gamma)*g, x -= alpha*m`` (README section 6.2 and
-``docs/momentum_convention.md``, which also derives the correspondence).
-Training with the unscaled ``lr = alpha`` makes the effective step
-``alpha/(1-gamma)`` -- ten times too large at gamma = 0.9 -- and the SGDM runs
-then sit at chance level.
+Outputs (results/cifar/): fig_cifar.png, cifar_losses.npz.
 
-There is no batch normalisation: the paper cites the original VGG-11 of
-Simonyan & Zisserman (2014), and ``vgg.py`` uses that network's three-layer
-classifier head (4096 -> 4096 -> 10 with dropout), sized for a 1x1 feature map
-because CIFAR-10 images are 32x32 rather than 224x224.
-
-Reporting convention
---------------------
-Following the authors' plotting routine (their ``moving_ave2``), the curve
-drawn at iteration t is the running mean of the per-iteration training losses
-over iterations 0..t-1, taken over the three seeds.  A non-finite loss is
-replaced by 1000 before averaging (so that a diverged seed contributes a large
-but finite value rather than an NaN curve), and the final curve is clipped to
-[-10, 100].
-
-Data
-----
-``--mode plot`` reads ``data/cifar_logs/*.csv`` and needs nothing else.
-``--mode train`` downloads CIFAR-10 (python batches, ~170 MB) on first use with
-``--download`` and caches it under ``data/CIFAR10/``.
-
-Outputs (results/cifar/):
-    fig_cifar.png
-    cifar_losses.npz
-
-Run:  python src/cifar/cifar_experiment.py
-      python src/cifar/cifar_experiment.py --mode train --download [--device cuda]
+Run: python src/cifar/cifar_experiment.py
+     python src/cifar/cifar_experiment.py --mode train --download [--device cuda]
 """
 
 from __future__ import annotations
@@ -81,7 +46,7 @@ COLORS = ['#d62728', '#1f77b4', '#ff7f0e', '#2ca02c']
 GAMMAS = [0.0, 0.7, 0.9, 0.99]
 
 DIVERGED = 1000.0        # non-finite loss -> this value before averaging
-CLIP = (-10.0, 100.0)    # the authors' clip on the plotted curve
+CLIP = (-10.0, 100.0)    # limits for the plotted cumulative loss
 N_ITER = 19550           # 50 epochs x 391 mini-batches
 
 
@@ -90,11 +55,9 @@ N_ITER = 19550           # 50 epochs x 391 mini-batches
 # ---------------------------------------------------------------------------
 
 def moving_ave2(arr, k=390):
-    """The authors' plotting helper, reproduced verbatim.
+    """Cumulative mean: out[t] = mean(arr[:t]) for t >= 1.
 
-    Despite the argument ``k``, this is a *cumulative* mean: ``out[t]`` is the
-    mean of ``arr[0..t-1]`` (and ``out[0] = arr[0]``).  ``k`` only pads the
-    left of the working array and never changes the result.
+    out[0] = arr[0]; k pads the workspace and does not affect the result.
     """
     arr = np.asarray(arr, dtype=float)
     n_iter = len(arr)          # the paper's ``n``: number of iterations
@@ -216,10 +179,7 @@ def run_one(seed, gamma, lr, epochs, batch_size, X, y, device, max_iter=None):
 
     net = VGG11(10).to(device)
     criterion = nn.CrossEntropyLoss()
-    # torch.optim.SGD scales its momentum buffer by lr, so lr = alpha*(1-gamma)
-    # realises the paper's recursion m = gamma*m + (1-gamma)*g, x -= alpha*m.
-    # With the unscaled lr = alpha the effective step is alpha/(1-gamma), ten
-    # times too large at gamma = 0.9, and the SGDM runs stay at chance level.
+    # lr=alpha*(1-gamma) implements m=gamma*m+(1-gamma)*g, x-=alpha*m.
     optimizer = optim.SGD(net.parameters(), lr=lr * (1.0 - gamma),
                           momentum=gamma)
 

@@ -61,8 +61,6 @@ FINAL_EXPS = tuple(range(-11, 3))          # Figure 10 x-axis: 2^-11 ... 2^2
 # capped array feeds the figure, ``*_raw`` keeps what the recursion produced.
 DIVERGED_CAP = 1.0
 
-# (marker, linestyle) per curve, in the order of SGD_CURVE_EXPS /
-# SGDM_CURVE_EXPS; read off the published Figure 9 and Figure 11.
 FIG9_STYLE = [("v", "-"), ("s", "--"), ("o", "-."), ("+", "-."), ("p", "-.")]
 FIG11_STYLE = [("o", "-."), ("v", "-"), ("s", "--"), ("D", "-."), ("P", "-.")]
 
@@ -199,9 +197,6 @@ def main():
             last_sgdm[seed, :, ai_] = last[(gamma_sgdm, alpha)]
             ave_sgdm[seed, :, ai_] = ave[(gamma_sgdm, alpha)]
 
-    # ---- Figure 9: last iterate under different learning rates ----
-    # Two panels on the authors' 8 x 4 inch canvas, each with the 0.1/0.9 by
-    # 0.2/0.9 axes box; the x-axis is the paper's [0, 500].
     fig = plt.figure(figsize=(8, 4), dpi=150)
     spec = gridspec.GridSpec(1, 2, left=0.1, right=0.9, top=0.9,
                              bottom=0.2, figure=fig)

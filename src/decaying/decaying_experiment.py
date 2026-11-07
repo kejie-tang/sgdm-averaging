@@ -7,10 +7,9 @@ Quadratic loss (Section 5.1): N = 20,000, d = 10, A_i = V_i^T V_i + 10 I_d,
 batch size B = 0.2 N, n = 2000 iterations, 200 replications, momentum weight
 gamma = 0.96.  The learning rate decays as
 
-    alpha_t = alpha0 / sqrt(max(n0,t)).
-The default uses alpha0=0.001*sqrt(n0), giving an initial plateau rate
-of 0.001. --alpha0 sets the paper's coefficient
-directly; --initial_lr controls the default plateau.
+    alpha_t = initial_lr * sqrt(n0 / max(n0,t)), initial_lr = 0.001.
+The optional --alpha0 argument sets the coefficient initial_lr*sqrt(n0)
+in the equivalent coefficient/sqrt(max(n0,t)) representation.
 This schedule does not require knowing the horizon n in advance.
 
 Panel layout
@@ -64,7 +63,7 @@ def main():
     ap.add_argument("--n", type=int, default=2000, help="number of iterations n")
     ap.add_argument("--num_seed", type=int, default=200, help="number of independent replications")
     ap.add_argument("--alpha0", type=float, default=None,
-                    help="coefficient in alpha_t=alpha0/sqrt(max(n0,t))")
+                    help="optional coefficient initial_lr*sqrt(n0)")
     ap.add_argument("--initial_lr", type=float, default=0.001,
                     help="initial plateau rate when --alpha0 is omitted")
     ap.add_argument("--batch_frac", type=float, default=0.2, help="mini-batch size as a fraction of N")
@@ -101,9 +100,7 @@ def main():
         # once per replication and replayed by every panel / method.
         A_seq, b_seq = batch_gradient_sequence(Ai, bi, batch_size, schedule, n)
 
-        # The learning-rate schedule alpha_t = alpha0*(max{n0,t})^{-1/2} depends
-        # on n0, so each panel is a different run and gets its own last-iterate
-        # curve as well as its own averaged curve.
+        # Each n0 defines its own learning-rate schedule and trajectory.
         for n0 in n0_list:
             coefficient = (args.alpha0 if args.alpha0 is not None
                            else args.initial_lr * np.sqrt(n0))

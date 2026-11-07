@@ -105,13 +105,6 @@ def main():
         for n0 in n0_list:
             ave_sgdm[n0][seed] = averaged_errors(traj_m, x_star, n0, n - n0)
 
-    # ------------------------------------------------------------------ #
-    # Plotting.  Panel (a) has no momentum, panel (b) is SGDM-0.96; both
-    # show the last iterate plus one averaged curve per n0.  Colours and
-    # markers follow the published Figure 5: the reference curve is blue
-    # (SGD) / orange (SGDM-0.96) and the four averaged curves run
-    # green-red-purple-brown in (a) and red-purple-brown-pink in (b).
-    # ------------------------------------------------------------------ #
     def _panel(fname, err, ave, label_last, ave_label, ref_style, ave_colors):
         fig = plt.figure(figsize=(4, 4), dpi=150)
         spec = gridspec.GridSpec(1, 1, left=0.1, right=0.9, top=0.9,
