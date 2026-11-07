@@ -134,7 +134,7 @@ python src/clt/clt_experiment.py
 Use `--figure 8` or `--figure 12` to run only one of the two experiments.
 Figure 8 uses the full-data reference covariance, n=2000, n0=1000 and
 independent sampling with replacement.
-Figure 12 uses n=500, n0=150, 1000 trials (seeds 2000-2999), and the Remark 8
+Figure 12 uses n=1000, n0=500, 1000 trials (seeds 2000-2999), and the Remark 8
 plug-in covariance. Both Sigma_hat and S_hat use all sampled pre-update
 iterates x_1,...,x_n, including burn-in. S_hat averages individual-gradient
 outer products, not outer products of the batch-mean gradients. The Hessians
@@ -232,7 +232,7 @@ python src/mnist/mnist_experiment.py --download
 | 9 | `src/sensitivity/sensitivity_experiment.py` | last iterate, α ∈ {2⁻⁹,2⁻⁷,2⁻⁵} / γ = 0.8, α ∈ {2⁻⁹ … 2⁻¹} |
 | 10 | `src/sensitivity/sensitivity_experiment.py` | γ = {0.8, 0.9}, T = 500, α = 2⁻¹¹ … 2² |
 | 11 | `src/sensitivity/sensitivity_experiment.py` | averaged, γ = 0.8, n₀ = 500 |
-| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 500, n₀ = 150, 1000 trials, fixed projection, Remark 8 plug-in |
+| 12 | `src/clt/clt_experiment.py` | γ = {0.8, 0.9}, n = 1000, n₀ = 500, 1000 trials, fixed projection, Remark 8 plug-in |
 | 13 | `src/mnist_tanh/mnist_tanh_experiment.py` | tanh MLP, B = 256, α = 1.0 |
 | 14 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 234 |
 | 15 | `src/mnist_tanh/mnist_tanh_experiment.py` | averaged, n₀ = 468 |

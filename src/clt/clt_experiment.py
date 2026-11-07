@@ -5,15 +5,16 @@ Setting
 -------
 Quadratic loss, N = 20,000, d = 10, B = 0.2 N.
 Figure 8 uses A_i=V_i^T V_i+10I; Figure 12 uses A_i=V_i^T V_i+I.
-The statistic (Eq. (def:z))
-    Z = sqrt(B) / (sigma * sqrt(omega^T Sigma^{-1} Omega Sigma^{-1} omega))
-        * sum_{t=n0+1}^{n} omega^T (x_t - x^*) / sqrt(n - n0)
-is asymptotically N(0, 1) by Corollary 3.
+The projected statistic (Eq. (def:z)) is
+    Z = sqrt(B * (n - n0)) * omega^T (xbar - x^*) / sqrt(omega^T C omega).
+Figure 8 uses the full-data reference C; Figure 12 substitutes the sampled
+Remark 8 sandwich estimator C_hat = Sigma_tilde^{-1} S_hat Sigma_tilde^{-1}.
+The simulations examine its finite-sample normal approximation.
 
 Figure 8 uses the full-data reference covariance evaluated at x^*:
 n=2000, n0=1000, independent batches sampled with replacement.
 Figure 12 uses the sampled-gradient sandwich estimator of Remark 8:
-n=500, n0=150, independent batches sampled with replacement, 1000 trials.
+n=1000, n0=500, independent batches sampled with replacement, 1000 trials.
 Both experiments use a fixed unit random projection, shared across trials,
 rates and methods. Figure 12 uses every pre-update x_t, including burn-in,
 to estimate S_hat and Sigma_hat; it does not evaluate them at x^*.
@@ -161,8 +162,8 @@ def main():
     ap.add_argument("--n_hist", type=int, default=2000)
     ap.add_argument("--n0_hist", type=int, default=1000)
     ap.add_argument("--gamma_hist", type=float, default=0.9)
-    ap.add_argument("--n_cov", type=int, default=500)
-    ap.add_argument("--n0_cov", type=int, default=150)
+    ap.add_argument("--n_cov", type=int, default=1000)
+    ap.add_argument("--n0_cov", type=int, default=500)
     ap.add_argument("--num_seed_cov", type=int, default=1000)
     ap.add_argument("--seed_start_cov", type=int, default=2000)
     ap.add_argument("--workers", type=int, default=4)
