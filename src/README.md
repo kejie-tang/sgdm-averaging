@@ -18,7 +18,8 @@ statistical helpers are defined in `sgdm_core.py`.
 | `mnist/` | EC.4 | `python src/mnist/mnist_experiment.py --download` |
 
 `bash scripts/run_all.sh` runs all figures. `FAST=1` reduces replications and
-training epochs; `SKIP_NEURAL=1` runs only the synthetic experiments.
+uses three MNIST epochs with seed 1; `SKIP_NEURAL=1` runs only the synthetic
+experiments.
 
 ## Shared conventions
 

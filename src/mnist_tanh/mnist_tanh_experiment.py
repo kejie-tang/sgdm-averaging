@@ -182,6 +182,13 @@ def main():
     X, y = load_mnist(raw_dir, download=args.download)
     print(f"[mnist-tanh] loaded {X.shape[0]} training images")
 
+    planned_iterations = min(args.max_iter,
+                             args.epochs * (X.shape[0] // args.batch_size))
+    if any(n0 < 0 or n0 >= planned_iterations for n0 in args.n0_list):
+        ap.error(f"--n0_list values must satisfy 0 <= n0 < {planned_iterations} "
+                 "(planned iterations). Increase --epochs/--max_iter or "
+                 "reduce --n0_list.")
+
     gamma_all = [0.0] + list(args.gamma)
     last_curves, ave_curves = {}, {}
     for gamma in gamma_all:

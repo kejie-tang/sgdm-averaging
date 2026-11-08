@@ -70,6 +70,8 @@ See `data/README.md`.
 
 Run from the repository root. `bash scripts/run_all.sh` does everything
 (`FAST=1` for a quick reduced-fidelity pass).
+Fast mode uses 20 simulation replications, 100 CLT trials, and three MNIST
+epochs with seed 1, retaining the averaging start points of 234 and 468.
 
 **Expected output.** A complete run writes 34 PNGs under `results/<exp>/`.
 Most figures are one file per panel — (a) and (b) — while Figures 1, 9, 10, 11,

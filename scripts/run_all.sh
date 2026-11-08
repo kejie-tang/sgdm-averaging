@@ -14,12 +14,14 @@ cd "$(dirname "$0")/.."
 if [ "${FAST:-0}" = "1" ]; then
   SEED=20
   SEED_CLT=100
-  EPOCHS=1
-  echo ">>> FAST mode: reduced number of replications"
+  EPOCHS=3
+  NN_SEEDS=(1)
+  echo ">>> FAST mode: reduced replications and MNIST training"
 else
   SEED=200
   SEED_CLT=1000
   EPOCHS=5
+  NN_SEEDS=(1 2 3)
 fi
 
 echo ">>> Figure 1: spectral radius"
@@ -51,10 +53,12 @@ if [ "${SKIP_NEURAL:-0}" = "1" ]; then
   echo ">>> skipping the MNIST / CIFAR-10 experiments (SKIP_NEURAL=1)"
 else
   echo ">>> Figures 13-15: MNIST with the tanh network"
-  python src/mnist_tanh/mnist_tanh_experiment.py --download --epochs "$EPOCHS"
+  python src/mnist_tanh/mnist_tanh_experiment.py --download --epochs "$EPOCHS" \
+      --seeds "${NN_SEEDS[@]}"
 
   echo ">>> Figure EC.4: MNIST with logistic regression"
-  python src/mnist/mnist_experiment.py --download --epochs "$EPOCHS"
+  python src/mnist/mnist_experiment.py --download --epochs "$EPOCHS" \
+      --seeds "${NN_SEEDS[@]}"
 
   # Figure 16 is drawn from the archived logs that produced the paper's panel
   # (data/cifar_logs/). To train the network from scratch, add

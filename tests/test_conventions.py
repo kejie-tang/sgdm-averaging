@@ -252,6 +252,108 @@ def test_cifar_train_curves_honours_the_requested_gammas():
     assert seen == [0.0, 0.2], f"requested [0.0, 0.2] but trained {seen}"
 
 
+def _run_all_commands(fast, directory):
+    """Execute the shell runner with a recorder in place of training."""
+    import json
+    from pathlib import Path
+    folder = Path(directory)
+    bin_dir = folder / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    recorder = folder / "record_commands.py"
+    recorder.write_text(
+        "import json, os, sys\n"
+        "with open(os.environ['SGDM_TEST_LOG'], 'a') as stream:\n"
+        "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n")
+    python = bin_dir / "python"
+    python.write_text('#!/usr/bin/env bash\n'
+                      'exec "$SGDM_TEST_PYTHON" "$SGDM_TEST_RECORDER" "$@"\n')
+    python.chmod(0o755)
+    log = folder / f"commands_{fast}.jsonl"
+    env = dict(os.environ, FAST=str(fast), SKIP_NEURAL="0",
+               SGDM_TEST_PYTHON=sys.executable, SGDM_TEST_RECORDER=str(recorder),
+               SGDM_TEST_LOG=str(log), PATH=str(bin_dir) + os.pathsep + os.environ["PATH"])
+    result = subprocess.run(["bash", os.path.join(ROOT, "scripts", "run_all.sh")],
+                            env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def test_fast_runner_keeps_averaged_mnist_curves_nonempty():
+    """FAST=1 must generate data for both averaged MNIST panels."""
+    import contextlib
+    import importlib.util
+    import io
+    import tempfile
+    import types
+    from unittest.mock import patch
+    from matplotlib.axes import Axes
+
+    with tempfile.TemporaryDirectory() as directory:
+        full = _run_all_commands(0, directory)
+        fast = _run_all_commands(1, directory)
+        for script in ("src/mnist_tanh/mnist_tanh_experiment.py",
+                       "src/mnist/mnist_experiment.py"):
+            full_args = next(args for args in full if args[0] == script)
+            assert full_args[full_args.index("--epochs") + 1] == "5"
+            if "--seeds" in full_args:
+                assert full_args[full_args.index("--seeds") + 1:] == ["1", "2", "3"]
+
+        args = next(args for args in fast if args[0].startswith("src/mnist_tanh/"))
+        models = types.ModuleType("nn_models")
+        models.Net = object
+        torch = types.ModuleType("torch")
+        torch.cuda = types.SimpleNamespace(is_available=lambda: False)
+        path = os.path.join(ROOT, args[0])
+        old_path = sys.path[:]
+        captured, trained = [], []
+        real_plot = Axes.plot
+
+        def record_plot(axis, x, y, *positional, **kwargs):
+            if kwargs.get("label", "").startswith("Ave-"):
+                captured.append((np.asarray(x), np.asarray(y)))
+            return real_plot(axis, x, y, *positional, **kwargs)
+
+        def loss_sequence(seed, gamma, lr, epochs, batch_size, X, y,
+                          n0_list, device, max_iter=None):
+            trained.append((seed, gamma))
+            n = min(epochs * (len(X) // batch_size), max_iter)
+            losses = np.full(n, 0.3)
+            return losses, {n0: losses.copy() for n0 in n0_list}
+
+        try:
+            with patch.dict(sys.modules, {"nn_models": models, "torch": torch}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                spec = importlib.util.spec_from_file_location("fast_mnist_test", path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                module.load_mnist = lambda *a, **k: (np.zeros((60000, 1)), np.zeros(60000))
+                module.run_one = loss_sequence
+                argv = [path] + args[1:] + ["--out", directory]
+                with patch.object(sys, "argv", argv), patch.object(Axes, "plot", record_plot):
+                    module.main()
+                assert captured and all(len(x) == len(y) > 0 for x, y in captured)
+                assert {int(x[0]) for x, _ in captured} == {234, 468}
+                assert {seed for seed, _ in trained} == {1}
+
+                # Neither a short epoch budget nor a cutoff at n0 may produce an empty plot.
+                for epochs, max_iter in ((1, 1000), (3, 468)):
+                    before = len(trained)
+                    argv = [path, "--epochs", str(epochs), "--max_iter", str(max_iter),
+                            "--out", directory]
+                    error = io.StringIO()
+                    with patch.object(sys, "argv", argv), contextlib.redirect_stderr(error):
+                        try:
+                            module.main()
+                        except SystemExit as exc:
+                            assert exc.code == 2
+                        else:
+                            raise AssertionError("an empty averaging window was accepted")
+                    assert len(trained) == before, "invalid settings started training"
+                    assert "n0" in error.getvalue()
+        finally:
+            sys.path[:] = old_path
+
+
 
 def test_quadratic_minimizer_and_initial_distance():
     rng = np.random.RandomState(9)
