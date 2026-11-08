@@ -52,6 +52,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sgdm_core import generate_logistic_data, make_batch_schedule  # noqa: E402
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -101,6 +103,7 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "logistic"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d = args.N, args.d

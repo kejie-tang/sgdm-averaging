@@ -39,6 +39,8 @@ from sgdm_core import (  # noqa: E402
     run_sgdm,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -66,6 +68,7 @@ def main():
                                          "..", "..", "results",
                                          "n0_sensitivity"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d, n = args.N, args.d, args.n
@@ -117,7 +120,7 @@ def main():
             ax.plot(np.arange(n0 + 1, n0 + 1 + y.size), y,
                     label=rf"{ave_label}-$n_0$={n0}",
                     marker=ref_style["marker"], markevery=0.3,
-                    linestyle="-", color=ave_colors[j])
+                    linestyle="-", color=ave_colors[j % len(ave_colors)])
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")

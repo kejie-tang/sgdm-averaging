@@ -47,11 +47,13 @@ import gzip
 import os
 import struct
 import sys
-import urllib.request
 
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from sgdm_core import validate_experiment_args  # noqa: E402
+from data_io import download_file  # noqa: E402
 
 import matplotlib
 matplotlib.use("Agg")
@@ -100,7 +102,7 @@ def load_mnist(raw_dir, download=False):
                         url = mirror + suffix
                         dst = os.path.join(raw_dir, suffix)
                         print(f"[mnist] downloading {url}")
-                        urllib.request.urlretrieve(url, dst)
+                        download_file(url, dst)
                         return dst
                     except Exception as e:  # noqa: BLE001
                         print(f"[mnist]   failed: {e}")
@@ -111,6 +113,16 @@ def load_mnist(raw_dir, download=False):
     X = _read_idx(resolve(names["train_img"])).reshape(-1, 784).astype(np.uint8)
     y = _read_idx(resolve(names["train_lbl"])).astype(np.int64)
     return X, y
+
+
+def momentum_panels(requested, small_default, large_default):
+    """Keep the paper panels by default; show all explicitly requested weights."""
+    if requested is None:
+        return list(small_default), list(large_default)
+    positive = list(dict.fromkeys(g for g in requested if g != 0))
+    small = [g for g in positive if g <= 0.5]
+    large = [g for g in positive if g >= 0.5]
+    return small, large or positive
 
 
 def cumulative_mean(arr):
@@ -175,7 +187,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, device,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gamma", type=float, nargs="+",
-                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99], help="momentum weight gamma (0 is SGD)")
+                    default=None, help="momentum weights (default: 0.1, 0.3, 0.5, 0.7, 0.9, 0.99)")
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
     ap.add_argument("--lr", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=5)
@@ -189,6 +201,11 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "mnist"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
+    small_gammas, large_gammas = momentum_panels(
+        args.gamma, [0.1, 0.3, 0.5], [0.5, 0.7, 0.9, 0.99])
+    if args.gamma is None:
+        args.gamma = [0.1, 0.3, 0.5, 0.7, 0.9, 0.99]
 
     if args.data_root is None:
         args.data_root = os.path.join(os.path.dirname(__file__),
@@ -203,7 +220,9 @@ def main():
     X, y = load_mnist(raw_dir, download=args.download)
     print(f"[mnist] loaded {X.shape[0]} training images")
 
-    gamma_all = [0.0] + list(args.gamma)
+    if args.batch_size > X.shape[0]:
+        ap.error("--batch_size must not exceed the training-set size")
+    gamma_all = list(dict.fromkeys([0.0] + list(args.gamma)))
     curves = {}
     for gamma in gamma_all:
         runs = []
@@ -228,10 +247,10 @@ def main():
             if gamma not in curves:
                 continue
             label = "SGD" if gamma == 0.0 else f"SGDM-{gamma}"
-            ax.plot(curves[gamma], label=label, marker=style["markers"][j],
+            ax.plot(curves[gamma], label=label, marker=style["markers"][j % len(style["markers"])],
                     markevery=0.3, markersize=6,
-                    linestyle=style["linestyles"][j],
-                    color=style["colors"][j])
+                    linestyle=style["linestyles"][j % len(style["linestyles"])],
+                    color=style["colors"][j % len(style["colors"])])
             j += 1
         ax.set_xlabel(r"$t$")
         ax.set_ylabel("Training Loss")
@@ -241,9 +260,9 @@ def main():
         plt.close(fig)
 
     # Figure EC.4(a): SGD, SGDM-0.1, 0.3, 0.5
-    plot("fig_mnist_small.png", [0.1, 0.3, 0.5], (0.2, 2.6), True, SMALL)
+    plot("fig_mnist_small.png", small_gammas, (0.2, 2.6), True, SMALL)
     # Figure EC.4(b): SGDM-0.5, 0.7, 0.9, 0.99  (no SGD in the paper's panel)
-    plot("fig_mnist_large.png", [0.5, 0.7, 0.9, 0.99], (0.2, 2.6), False, LARGE)
+    plot("fig_mnist_large.png", large_gammas, (0.2, 2.6), not large_gammas, LARGE)
 
     np.savez_compressed(os.path.join(args.out, "mnist_losses.npz"),
                         **{f"gamma_{g}": curves[g] for g in curves})

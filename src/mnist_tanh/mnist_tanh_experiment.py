@@ -57,8 +57,9 @@ import numpy as np
 _HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(_HERE, ".."))
 sys.path.insert(0, os.path.join(_HERE, "..", "mnist"))
-from mnist_experiment import load_mnist  # noqa: E402
-from nn_models import Net  # noqa: E402
+from mnist_experiment import load_mnist, momentum_panels  # noqa: E402
+
+from sgdm_core import validate_experiment_args  # noqa: E402
 
 import matplotlib
 matplotlib.use("Agg")
@@ -88,6 +89,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
     import torch
     import torch.nn as nn
     import torch.optim as optim
+    from nn_models import Net
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -154,7 +156,7 @@ def run_one(seed, gamma, lr, num_epochs, batch_size, X, y, n0_list, device,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gamma", type=float, nargs="+",
-                    default=[0.1, 0.3, 0.5, 0.7, 0.9, 0.99], help="momentum weight gamma (0 is SGD)")
+                    default=None, help="momentum weights (default: 0.1, 0.3, 0.5, 0.7, 0.9, 0.99)")
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
     ap.add_argument("--lr", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=5)
@@ -169,6 +171,11 @@ def main():
                     default=os.path.join(_HERE, "..", "..", "results",
                                          "mnist_tanh"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
+    small_gammas, large_gammas = momentum_panels(
+        args.gamma, [0.3, 0.5], [0.5, 0.7, 0.9, 0.99])
+    if args.gamma is None:
+        args.gamma = [0.1, 0.3, 0.5, 0.7, 0.9, 0.99]
 
     if args.data_root is None:
         args.data_root = os.path.join(_HERE, "..", "..", "data", "MNIST")
@@ -189,7 +196,7 @@ def main():
                  "(planned iterations). Increase --epochs/--max_iter or "
                  "reduce --n0_list.")
 
-    gamma_all = [0.0] + list(args.gamma)
+    gamma_all = list(dict.fromkeys([0.0] + list(args.gamma)))
     last_curves, ave_curves = {}, {}
     for gamma in gamma_all:
         lasts, aves = [], {n0: [] for n0 in args.n0_list}
@@ -228,10 +235,10 @@ def main():
             else:
                 label = f"{prefix}SGDM-{gamma}"
             x = np.arange(lo, hi)
-            ax.plot(x, y[lo:hi], label=label, marker=style["markers"][j],
+            ax.plot(x, y[lo:hi], label=label, marker=style["markers"][j % len(style["markers"])],
                     markevery=0.3, markersize=6,
-                    linestyle=style["linestyles"][j],
-                    color=style["colors"][j])
+                    linestyle=style["linestyles"][j % len(style["linestyles"])],
+                    color=style["colors"][j % len(style["colors"])])
             j += 1
         ax.set_xlabel(r"$t$" if lo == 0 else r"$n_0+t$")
         ax.set_ylabel("Training Loss")
@@ -241,20 +248,20 @@ def main():
         plt.close(fig)
 
     # Figure 13: last iterate, t = 0 .. 999.
-    draw("fig_tanh_small.png", [0.3, 0.5], last_curves.get, 0, T,
+    draw("fig_tanh_small.png", small_gammas, last_curves.get, 0, T,
          (0.2, 2.6), True, SMALL)
-    draw("fig_tanh_large.png", [0.5, 0.7, 0.9, 0.99], last_curves.get, 0, T,
-         (0.2, 2.6), False, LARGE)
+    draw("fig_tanh_large.png", large_gammas, last_curves.get, 0, T,
+         (0.2, 2.6), not large_gammas, LARGE)
 
     # Figures 14 and 15: averaged parameters, plotted from t = n0.
     for n0 in args.n0_list:
         def ave_getter(gamma, _n0=n0):
             return ave_curves.get(gamma, {}).get(_n0)
 
-        draw(f"fig_avetanh_n0_{n0}_small.png", [0.3, 0.5], ave_getter, n0, T,
+        draw(f"fig_avetanh_n0_{n0}_small.png", small_gammas, ave_getter, n0, T,
              (0.20, 0.65), True, SMALL, prefix="Ave-")
-        draw(f"fig_avetanh_n0_{n0}_large.png", [0.5, 0.7, 0.9, 0.99],
-             ave_getter, n0, T, (0.20, 0.65), False, LARGE, prefix="Ave-")
+        draw(f"fig_avetanh_n0_{n0}_large.png", large_gammas,
+             ave_getter, n0, T, (0.20, 0.65), not large_gammas, LARGE, prefix="Ave-")
 
     arrays = {}
     for g in gamma_all:

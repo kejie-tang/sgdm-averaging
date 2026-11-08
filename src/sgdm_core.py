@@ -71,6 +71,48 @@ import numpy as np
 # --------------------------------------------------------------------------- #
 # Data generation
 # --------------------------------------------------------------------------- #
+def validate_experiment_args(parser, args):
+    """Reject settings that would produce invalid or empty experiment curves."""
+    for name in ("N", "d", "n", "num_seed", "num_seed_cov", "n_hist", "n_cov",
+                 "workers", "epochs", "batch_size", "max_iter"):
+        value = getattr(args, name, None)
+        if value is not None and value <= 0:
+            parser.error(f"--{name} must be positive")
+    for name in ("alpha", "alpha0", "initial_lr", "lr"):
+        value = getattr(args, name, None)
+        if value is not None and (not np.isfinite(value) or value <= 0):
+            parser.error(f"--{name} must be finite and positive")
+    for name in ("gamma", "gammas", "gamma_hist"):
+        value = getattr(args, name, None)
+        if value is not None and any(not np.isfinite(g) or not 0 <= g < 1
+                                     for g in np.atleast_1d(value)):
+            parser.error(f"--{name} values must satisfy 0 <= gamma < 1")
+    fraction = getattr(args, "batch_frac", None)
+    if fraction is not None:
+        if not np.isfinite(fraction) or not 0 < fraction <= 1:
+            parser.error("--batch_frac must satisfy 0 < batch_frac <= 1")
+        if round(fraction * args.N) < 1:
+            parser.error("--batch_frac gives an empty mini-batch; increase it")
+    horizon = getattr(args, "n", None)
+    for name in ("n0", "n0_list", "n0_hist", "n0_cov", "T", "seed_start_cov", "seeds"):
+        value = getattr(args, name, None)
+        if value is None:
+            continue
+        values = np.atleast_1d(value)
+        if any(v < 0 for v in values):
+            parser.error(f"--{name} values must be nonnegative")
+        if name in ("n0", "n0_list") and horizon is not None:
+            if any(v >= horizon for v in values):
+                parser.error(f"--{name} values must be smaller than --n={horizon}")
+        if name == "n0_list" and len(set(values)) != len(values):
+            parser.error("--n0_list values must be distinct")
+    if hasattr(args, "ave_len") and args.ave_len < 2:
+        parser.error("--ave_len must be at least 2 to plot averaged points")
+    if hasattr(args, "rho_list"):
+        if any(not np.isfinite(rho) or rho < 0 for rho in args.rho_list):
+            parser.error("--rho_list values must be finite and nonnegative")
+
+
 def draw_quadratic_problem(N, d, rng):
     """Draw V (N, d, d), b_i (N, d, 1), then the initial direction u (d, 1).
 

@@ -18,10 +18,14 @@ ROOT="$(pwd)"
 
 OUT="${OUT:-$ROOT/sgdm-averaging.tar.gz}"
 RAW="${RAW:-1}"
+TAR_FLAGS=()
+case "$(tar --version 2>/dev/null)" in
+  *"GNU tar"*) TAR_FLAGS=(--force-local) ;;
+esac
 
 # --- sanity checks ----------------------------------------------------------
 for f in README.md LICENSE AUTHORS requirements.txt .gitignore \
-         src scripts docs data/README.md data/cifar_logs; do
+         src scripts docs tests data/README.md data/cifar_logs; do
   if [ ! -e "$f" ]; then
     echo "ERROR: missing $f -- run this from a complete checkout." >&2
     exit 1
@@ -60,18 +64,17 @@ trap '[ -n "$NOTE" ] && rm -f "$NOTE"' EXIT
 #                                  demand by --download; not ours to ship
 #   __pycache__/, *.pyc, .git   -- build and VCS noise
 rm -f "$OUT"
-# --force-local: on Windows (Git Bash / MSYS2) OUT may be a C:\... path, and
-# GNU tar would otherwise read "C:" as a remote host and fail.
-tar czf "$OUT" --force-local \
+# GNU tar needs --force-local for Windows drive paths; BSD tar omits it.
+tar czf "$OUT" "${TAR_FLAGS[@]}" \
   --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' \
   "${EXCLUDES[@]}" \
   README.md LICENSE AUTHORS requirements.txt .gitignore \
-  src scripts docs \
+  src scripts docs tests \
   data/README.md data/cifar_logs \
   results
 
 # --- verify -----------------------------------------------------------------
-LIST="$(tar tzf "$OUT" --force-local)"
+LIST="$(tar tzf "$OUT" "${TAR_FLAGS[@]}")"
 
 for bad in 'data/MNIST/' 'data/CIFAR10/' '.git/' '__pycache__'; do
   if printf '%s\n' "$LIST" | grep -qF "$bad"; then
@@ -81,7 +84,8 @@ for bad in 'data/MNIST/' 'data/CIFAR10/' '.git/' '__pycache__'; do
 done
 
 for want in 'README.md' 'LICENSE' 'AUTHORS' 'src/sgdm_core.py' \
-            'scripts/run_all.sh' 'data/cifar_logs/lr0.5_gamma0.9.csv' \
+            'scripts/run_all.sh' 'tests/test_conventions.py' \
+            'data/cifar_logs/lr0.5_gamma0.9.csv' \
             'results/theory/fig_lambda.png'; do
   if ! printf '%s\n' "$LIST" | grep -qxF "$want"; then
     echo "ERROR: $want is missing from the archive." >&2

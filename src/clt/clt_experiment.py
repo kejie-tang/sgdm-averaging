@@ -44,6 +44,8 @@ from sgdm_core import (  # noqa: E402
     run_sgdm, online_projected_variances,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -78,8 +80,8 @@ def coverage_figure(exps, gammas, cover_sgd, cover_sgdm, out_dir):
             linestyle=LINESTYLES[0])
     for gi_, gamma in enumerate(gammas):
         ax.plot(exps, cover_sgdm[:, gi_, :].mean(axis=0),
-                label=f"SGDM-{gamma}", marker=MARKERS[gi_ + 1],
-                linestyle=LINESTYLES[gi_ + 1])
+                label=f"SGDM-{gamma}", marker=MARKERS[(gi_ + 1) % len(MARKERS)],
+                linestyle=LINESTYLES[(gi_ + 1) % len(LINESTYLES)])
     ax.axhline(y=0.95, color="black", linestyle="--")
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$P(|Z|<1.96)$")
@@ -165,6 +167,7 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "clt"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d = args.N, args.d

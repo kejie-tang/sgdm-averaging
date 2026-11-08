@@ -49,6 +49,8 @@ from sgdm_core import (  # noqa: E402
     make_batch_schedule, run_sgd, run_sgdm,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -85,6 +87,7 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "quadratic"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d, n = args.N, args.d, args.n

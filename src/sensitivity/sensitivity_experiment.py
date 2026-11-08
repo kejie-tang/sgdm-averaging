@@ -41,6 +41,8 @@ from sgdm_core import (  # noqa: E402
     build_quadratic_data, draw_quadratic_problem, make_batch_schedule,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -129,6 +131,7 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "sensitivity"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d, n, T, n0 = args.N, args.d, args.n, args.T, args.n0
@@ -236,9 +239,9 @@ def main():
             marker="o", markevery=0.3, linestyle="--", color=COLORS[0])
     for gi_, gamma in enumerate(args.gammas):
         ax.plot(FINAL_EXPS, err_sgdm[:, gi_, :].mean(axis=0),
-                label=rf"SGDM-{gamma}", marker=("v", "s")[gi_],
-                markevery=0.3, linestyle=("-", "--")[gi_],
-                color=COLORS[gi_ + 1])
+                label=rf"SGDM-{gamma}", marker=("v", "s")[gi_ % 2],
+                markevery=0.3, linestyle=("-", "--")[gi_ % 2],
+                color=COLORS[(gi_ + 1) % len(COLORS)])
     ax.set_xlabel(r"$\alpha=2^{x}$")
     ax.set_ylabel(r"$\|x_T-x^*\|^2$")
     ax.set_yscale("log")

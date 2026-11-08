@@ -50,6 +50,10 @@ def spectral_radius_grid(kappa, n_grid=401):
     Rows index gamma in [0, 1], columns index alpha*sqrt(muL) in [0, 2].
     Entries are np.nan when the learning rate violates the stability condition.
     """
+    if not math.isfinite(kappa) or kappa < 1:
+        raise ValueError("kappa must be finite and at least 1")
+    if n_grid < 2:
+        raise ValueError("n_grid must be at least 2")
     x = np.linspace(0, 2, n_grid)      # alpha * sqrt(mu L)
     y = np.linspace(0, 1, n_grid)      # gamma
     X, Y = np.meshgrid(x, y)

@@ -44,6 +44,8 @@ from sgdm_core import (  # noqa: E402
     make_batch_schedule, run_sgd, run_sgdm,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -74,6 +76,7 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "diff_lmu"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d, n = args.N, args.d, args.n
@@ -142,14 +145,14 @@ def main():
             ax.plot(np.arange(n), (err[:, :, j] ** 2).mean(axis=0),
                     label=rf"{last_label}-$L/\mu={cond:g}$",
                     marker=marker, markevery=0.3,
-                    linestyle=":", color=colors[j])
+                    linestyle=":", color=colors[j % len(colors)])
         for j, rho in enumerate(rho_list):
             cond = round(kappa_mean[j], 1 if args.kappa_labels == "rounded" else 2)
             ya = (ave[:, :, j] ** 2).mean(axis=0)
             ax.plot(np.arange(n0 + 1, n0 + 1 + ya.size), ya,
                     label=rf"{ave_label}-$L/\mu={cond:g}$",
                     marker=marker, markevery=0.3,
-                    linestyle="-", color=colors[j], zorder=5)
+                    linestyle="-", color=colors[j % len(colors)], zorder=5)
         ax.set_xlabel(r"$t$")
         ax.set_ylabel(r"$L_2$-error")
         ax.set_yscale("log")

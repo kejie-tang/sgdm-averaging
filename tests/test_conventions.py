@@ -189,15 +189,7 @@ def test_adaptive_gamma_in_unit_interval():
 # Experiment command-line interfaces
 # --------------------------------------------------------------------------- #
 def test_all_scripts_import_and_expose_help():
-    """Every script parses its CLI.
-
-    The neural-network scripts import torch at module level, so they are only
-    checked when torch is installed; the rest need numpy and matplotlib only.
-    """
-    import importlib.util
-    has_torch = importlib.util.find_spec("torch") is not None
-    needs_torch = {"cifar_experiment.py", "mnist_experiment.py",
-                   "mnist_tanh_experiment.py"}
+    """Every CLI exposes --help without importing optional training libraries."""
 
     scripts = []
     for exp in sorted(os.listdir(os.path.join(ROOT, "src"))):
@@ -209,24 +201,14 @@ def test_all_scripts_import_and_expose_help():
                 scripts.append(os.path.join(d, f))
     assert scripts, "no scripts found"
 
-    skipped = 0
     for s in scripts:
-        if not has_torch and os.path.basename(s) in needs_torch:
-            skipped += 1
-            continue
         r = subprocess.run([sys.executable, s, "--help"],
                            capture_output=True, text=True, timeout=120)
         assert r.returncode == 0, f"{s} --help failed:\n{r.stderr}"
-    if skipped:
-        print(f"    (skipped {skipped} torch-only scripts)")
 
 
 def test_cifar_train_curves_honours_the_requested_gammas():
     """The CIFAR trainer must use the requested momentum values."""
-    import importlib.util
-    if importlib.util.find_spec("torch") is None:
-        print("    (skipped: torch not installed)")
-        return
     import types
     sys.path.insert(0, os.path.join(ROOT, "src", "cifar"))
     import cifar_experiment as ce
@@ -383,6 +365,8 @@ def test_logistic_labels_match_positive_paper_parameter():
 
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+    import test_runtime
+    fns += [v for k, v in sorted(vars(test_runtime).items()) if k.startswith("test_")]
     failed = 0
     for fn in fns:
         try:

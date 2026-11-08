@@ -27,12 +27,14 @@ import os
 import pickle
 import sys
 import tarfile
-import urllib.request
 
 import numpy as np
 
 _HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(_HERE, ".."))
+
+from sgdm_core import validate_experiment_args  # noqa: E402
+from data_io import download_file  # noqa: E402
 
 import matplotlib  # noqa: E402
 matplotlib.use("Agg")
@@ -123,7 +125,7 @@ def load_cifar10(root, download=False):
             for url in CIFAR_URLS:
                 try:
                     print(f"[cifar] downloading {url}")
-                    urllib.request.urlretrieve(url, tgz)
+                    download_file(url, tgz)
                     last = None
                     break
                 except Exception as e:  # noqa: BLE001
@@ -270,6 +272,7 @@ def main():
     ap.add_argument("--out", type=str,
                     default=os.path.join(_HERE, "..", "..", "results", "cifar"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     if args.log_dir is None:
         args.log_dir = os.path.join(_HERE, "..", "..", "data", "cifar_logs")

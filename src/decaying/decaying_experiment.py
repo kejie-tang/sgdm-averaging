@@ -40,6 +40,8 @@ from sgdm_core import (  # noqa: E402
     make_batch_schedule, run_sgd, run_sgdm,
 )
 
+from sgdm_core import validate_experiment_args  # noqa: E402
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -73,11 +75,14 @@ def main():
                     default=os.path.join(os.path.dirname(__file__),
                                          "..", "..", "results", "decaying"))
     args = ap.parse_args()
+    validate_experiment_args(ap, args)
 
     os.makedirs(args.out, exist_ok=True)
     N, d, n = args.N, args.d, args.n
     batch_size = int(round(args.batch_frac * N))
     n0_list = sorted(args.n0_list)
+    if n0_list[0] < 1:
+        ap.error("--n0_list values must be positive for a decaying rate")
     if n0_list[-1] >= n:
         raise ValueError(f"n0={n0_list[-1]} must be smaller than n={n}.")
 
@@ -137,6 +142,7 @@ def main():
             else:
                 y = (ave_sgdm[n0] ** 2).mean(axis=0)
                 x = np.arange(n0 + 1, n0 + 1 + y.size)
+            label = label.replace("0.96", f"{args.gamma}")
             ax.plot(x, y, label=label, marker=MARKERS[mi], markevery=0.3,
                     linestyle=ls, color=COLORS[ci])
         ax.set_xlabel(r"$t$")
